@@ -376,6 +376,8 @@ async function runBillingTask(): Promise<TaskResult> {
 
 // ============== MAIN HANDLER ==============
 
+let cronRunning = false;
+
 /**
  * POST /api/cron
  * Run all scheduled tasks
@@ -393,45 +395,54 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const startTime = Date.now();
-  console.log("[Cron] Starting scheduled tasks...");
-
-  // Parse which tasks to run
-  const { searchParams } = new URL(request.url);
-  const tasksParam = searchParams.get("tasks");
-  const tasksToRun = tasksParam
-    ? tasksParam.split(",").map((t) => t.trim())
-    : ["reminders", "retention", "billing"];
-
-  const results: TaskResult[] = [];
-
-  // Run selected tasks
-  if (tasksToRun.includes("reminders")) {
-    console.log("[Cron] Running reminders task...");
-    results.push(await runReminderTask());
+  if (cronRunning) {
+    return NextResponse.json({ status: 'skipped', reason: 'Previous run still in progress' });
   }
+  cronRunning = true;
 
-  if (tasksToRun.includes("retention")) {
-    console.log("[Cron] Running retention task...");
-    results.push(await runRetentionTask());
+  try {
+    const startTime = Date.now();
+    console.log("[Cron] Starting scheduled tasks...");
+
+    // Parse which tasks to run
+    const { searchParams } = new URL(request.url);
+    const tasksParam = searchParams.get("tasks");
+    const tasksToRun = tasksParam
+      ? tasksParam.split(",").map((t) => t.trim())
+      : ["reminders", "retention", "billing"];
+
+    const results: TaskResult[] = [];
+
+    // Run selected tasks
+    if (tasksToRun.includes("reminders")) {
+      console.log("[Cron] Running reminders task...");
+      results.push(await runReminderTask());
+    }
+
+    if (tasksToRun.includes("retention")) {
+      console.log("[Cron] Running retention task...");
+      results.push(await runRetentionTask());
+    }
+
+    if (tasksToRun.includes("billing")) {
+      console.log("[Cron] Running billing task...");
+      results.push(await runBillingTask());
+    }
+
+    const totalDuration = Date.now() - startTime;
+    const allSuccessful = results.every((r) => r.success);
+
+    console.log(`[Cron] Completed in ${totalDuration}ms, success: ${allSuccessful}`);
+
+    return NextResponse.json({
+      success: allSuccessful,
+      timestamp: new Date().toISOString(),
+      duration: totalDuration,
+      tasks: results,
+    });
+  } finally {
+    cronRunning = false;
   }
-
-  if (tasksToRun.includes("billing")) {
-    console.log("[Cron] Running billing task...");
-    results.push(await runBillingTask());
-  }
-
-  const totalDuration = Date.now() - startTime;
-  const allSuccessful = results.every((r) => r.success);
-
-  console.log(`[Cron] Completed in ${totalDuration}ms, success: ${allSuccessful}`);
-
-  return NextResponse.json({
-    success: allSuccessful,
-    timestamp: new Date().toISOString(),
-    duration: totalDuration,
-    tasks: results,
-  });
 }
 
 /**

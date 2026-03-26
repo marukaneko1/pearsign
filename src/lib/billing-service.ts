@@ -214,9 +214,9 @@ export const BillingService = {
       )
     `;
 
-    // Invoices table
+    // Billing invoices table (Stripe billing records, separate from tenant invoicing module)
     await sql`
-      CREATE TABLE IF NOT EXISTS invoices (
+      CREATE TABLE IF NOT EXISTS billing_invoices (
         id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id VARCHAR(255) NOT NULL,
         stripe_invoice_id VARCHAR(255),
@@ -260,7 +260,7 @@ export const BillingService = {
     `;
 
     await sql`
-      CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id)
+      CREATE INDEX IF NOT EXISTS idx_billing_invoices_tenant ON billing_invoices(tenant_id)
     `;
     await sql`
       CREATE INDEX IF NOT EXISTS idx_payment_methods_tenant ON payment_methods(tenant_id)
@@ -324,7 +324,7 @@ export const BillingService = {
    */
   async getInvoices(tenantId: string, limit = 10): Promise<Invoice[]> {
     const result = await sql`
-      SELECT * FROM invoices
+      SELECT * FROM billing_invoices
       WHERE tenant_id = ${tenantId}
       ORDER BY created_at DESC
       LIMIT ${limit}
@@ -338,7 +338,7 @@ export const BillingService = {
    */
   async addInvoice(data: Omit<Invoice, 'id' | 'createdAt'>): Promise<Invoice> {
     const result = await sql`
-      INSERT INTO invoices (
+      INSERT INTO billing_invoices (
         tenant_id, stripe_invoice_id, amount, currency, status,
         pdf_url, hosted_invoice_url, period_start, period_end
       ) VALUES (
@@ -730,6 +730,18 @@ export const BillingService = {
         break;
       }
 
+      case 'checkout.session.completed': {
+        const session = data.object;
+        const sessionMetadata = session.metadata as Record<string, string> | undefined;
+        const sessionTenantId = sessionMetadata?.tenantId;
+        const plan = sessionMetadata?.plan;
+        if (sessionTenantId && plan) {
+          await TenantService.updateTenant(sessionTenantId, { plan: plan as TenantPlan });
+          console.log(`[Stripe] Checkout completed: tenant ${sessionTenantId} upgraded to ${plan}`);
+        }
+        break;
+      }
+
       case 'invoice.created':
       case 'invoice.finalized': {
         const invoice = data.object as Record<string, unknown>;
@@ -741,7 +753,7 @@ export const BillingService = {
           // Store the invoice in database (upsert to handle both created and finalized)
           try {
             await sql`
-              INSERT INTO invoices (
+              INSERT INTO billing_invoices (
                 tenant_id, stripe_invoice_id, amount, currency, status,
                 pdf_url, hosted_invoice_url, period_start, period_end
               ) VALUES (
@@ -762,7 +774,7 @@ export const BillingService = {
                 hosted_invoice_url = EXCLUDED.hosted_invoice_url
             `.catch(async () => {
               // If conflict on stripe_invoice_id fails (column may not have unique constraint), try regular insert
-              const existing = await sql`SELECT id FROM invoices WHERE stripe_invoice_id = ${invoice.id as string}`;
+              const existing = await sql`SELECT id FROM billing_invoices WHERE stripe_invoice_id = ${invoice.id as string}`;
               if (existing.length === 0) {
                 await this.addInvoice({
                   tenantId,

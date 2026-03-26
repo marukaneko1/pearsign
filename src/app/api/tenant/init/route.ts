@@ -12,31 +12,44 @@ import { sql } from '@/lib/db';
 import { TenantService } from '@/lib/tenant';
 import { ImmutableAuditLogService } from '@/lib/immutable-audit-log';
 
-// Default tenant for migrating existing data
-const DEFAULT_TENANT_ID = 'demo-tenant-001';
-const DEFAULT_TENANT_NAME = 'Demo Organization';
-const DEFAULT_TENANT_SLUG = 'demo';
-const DEFAULT_USER_ID = 'demo-user-001';
-
 export async function POST(request: NextRequest) {
   try {
+    const adminKey = request.headers.get('x-admin-key') || new URL(request.url).searchParams.get('adminKey');
+    const requiredKey = process.env.ADMIN_SECRET_KEY;
+    if (!requiredKey || adminKey !== requiredKey) {
+      return NextResponse.json({ error: 'Unauthorized: Admin key required' }, { status: 401 });
+    }
+
     console.log('[TenantInit] Starting multi-tenancy system initialization...');
 
-    // 0. Drop existing tenant tables if they have wrong types (UUID instead of VARCHAR)
-    console.log('[TenantInit] Checking and recreating tenant tables if needed...');
+    // Generate unique seed IDs at runtime instead of using hardcoded demo values
+    const DEFAULT_TENANT_ID = `tenant-${crypto.randomUUID()}`;
+    const DEFAULT_TENANT_NAME = 'Default Organization';
+    const DEFAULT_TENANT_SLUG = `org-${Date.now()}`;
+    const DEFAULT_USER_ID = `user-${crypto.randomUUID()}`;
+
+    // 0. Only drop old UUID-based tenant tables when explicitly forced
+    const forceRecreate = new URL(request.url).searchParams.get('force') === 'true';
+    console.log('[TenantInit] Checking tenant tables (force=' + forceRecreate + ')...');
     try {
-      // Check if tenants table exists and has UUID type
       const checkResult = await sql`
         SELECT data_type FROM information_schema.columns
         WHERE table_name = 'tenants' AND column_name = 'id'
       `;
 
       if (checkResult.length > 0 && checkResult[0].data_type === 'uuid') {
-        console.log('[TenantInit] Dropping old UUID-based tables...');
-        await sql`DROP TABLE IF EXISTS tenant_usage CASCADE`;
-        await sql`DROP TABLE IF EXISTS tenant_users CASCADE`;
-        await sql`DROP TABLE IF EXISTS tenants CASCADE`;
-        await sql`DROP TABLE IF EXISTS template_versions CASCADE`;
+        if (forceRecreate) {
+          console.warn('[TenantInit] WARNING: force=true — dropping old UUID-based tables');
+          await sql`DROP TABLE IF EXISTS tenant_usage CASCADE`;
+          await sql`DROP TABLE IF EXISTS tenant_users CASCADE`;
+          await sql`DROP TABLE IF EXISTS tenants CASCADE`;
+          await sql`DROP TABLE IF EXISTS template_versions CASCADE`;
+        } else {
+          console.warn(
+            '[TenantInit] Tenant tables use UUID type and may need migration. ' +
+            'Pass ?force=true to drop and recreate them. Skipping destructive operation.'
+          );
+        }
       }
     } catch (e) {
       console.log('[TenantInit] No existing tables to check');

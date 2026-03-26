@@ -3,7 +3,7 @@
  * Server-side notification management with real-time support
  */
 
-import { sql, DEFAULT_ORG_ID } from './db';
+import { sql } from './db';
 import { logNotificationEvent, logEnvelopeEvent } from './audit-log';
 
 // ============== TYPES ==============
@@ -180,8 +180,10 @@ export const NotificationService = {
     return result.length;
   },
 
-  async getById(notificationId: string): Promise<Notification | null> {
-    const result = await sql`SELECT * FROM notifications WHERE id = ${notificationId}::uuid`;
+  async getById(notificationId: string, orgId?: string): Promise<Notification | null> {
+    const result = orgId
+      ? await sql`SELECT * FROM notifications WHERE id = ${notificationId}::uuid AND org_id = ${orgId}`
+      : await sql`SELECT * FROM notifications WHERE id = ${notificationId}::uuid`;
     if (result.length === 0) return null;
     return mapNotificationFromDb(result[0]);
   },

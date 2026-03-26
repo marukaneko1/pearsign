@@ -151,7 +151,6 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
         USING (
           is_rls_bypassed()
           OR ${tenantColumn} = current_tenant_id()
-          OR current_tenant_id() = ''
         )
       `);
 
@@ -162,7 +161,6 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
         WITH CHECK (
           is_rls_bypassed()
           OR ${tenantColumn} = current_tenant_id()
-          OR current_tenant_id() = ''
         )
       `);
 
@@ -173,12 +171,10 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
         USING (
           is_rls_bypassed()
           OR ${tenantColumn} = current_tenant_id()
-          OR current_tenant_id() = ''
         )
         WITH CHECK (
           is_rls_bypassed()
           OR ${tenantColumn} = current_tenant_id()
-          OR current_tenant_id() = ''
         )
       `);
 
@@ -189,7 +185,6 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
         USING (
           is_rls_bypassed()
           OR ${tenantColumn} = current_tenant_id()
-          OR current_tenant_id() = ''
         )
       `);
 
@@ -224,8 +219,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
  */
 export async function setTenantContext(tenantId: string): Promise<void> {
   if (!tenantId) {
-    console.warn('[RLS] setTenantContext called with empty tenantId');
-    return;
+    throw new Error('[RLS] setTenantContext called with empty tenantId - this would bypass RLS');
   }
 
   try {

@@ -65,11 +65,7 @@ export async function getTenantSecuritySettings(tenantId: string): Promise<Tenan
     };
   } catch (error) {
     console.error('[SecurityEnforcement] Error getting settings:', error);
-    return {
-      requireTwoFactor: false,
-      ipRestrictions: [],
-      enforced: false,
-    };
+    throw new Error('Failed to load security settings');
   }
 }
 
@@ -109,8 +105,7 @@ export async function check2FARequirement(
     return { allowed: true };
   } catch (error) {
     console.error('[SecurityEnforcement] 2FA check error:', error);
-    // On error, allow access but log the issue
-    return { allowed: true };
+    return { allowed: false, reason: 'Security check failed. Please try again or contact support.' };
   }
 }
 
@@ -276,11 +271,10 @@ export async function checkIPRestrictions(
     };
   } catch (error) {
     console.error('[SecurityEnforcement] IP check error:', error);
-    // On error, allow access but log the issue
     return {
-      allowed: true,
+      allowed: false,
       clientIP: 'unknown',
-      reason: 'IP check failed, access allowed',
+      reason: 'Security check failed. Please try again or contact support.',
     };
   }
 }

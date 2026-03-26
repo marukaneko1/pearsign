@@ -9,9 +9,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { getTenantSessionContext } from "@/lib/tenant-session";
 
-// Default tenant ID for demo mode
-const DEMO_TENANT_ID = "demo-org";
-
 /**
  * GET /api/settings/integrations/google-drive/callback
  * Handle Google OAuth callback and exchange code for tokens
@@ -25,25 +22,26 @@ export async function GET(request: NextRequest) {
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    // Extract tenant ID from state parameter, or try to get from session
-    let tenantId = DEMO_TENANT_ID;
+    let tenantId: string | null = null;
 
     // First, try to get tenant from state (passed during OAuth initiation)
     if (state) {
       try {
-        // State can be JSON with tenant info
-        const stateData = JSON.parse(decodeURIComponent(state));
-        if (stateData.tenantId) {
-          tenantId = stateData.tenantId;
-        }
+        const decoded = Buffer.from(state, 'base64').toString();
+        const parsed = JSON.parse(decoded);
+        tenantId = parsed.tenantId || null;
       } catch {
-        // State might just be the tenant ID directly
-        tenantId = state;
+        try {
+          const parsed = JSON.parse(decodeURIComponent(state));
+          tenantId = parsed.tenantId || null;
+        } catch {
+          tenantId = state;
+        }
       }
     }
 
     // Fall back to session if available
-    if (tenantId === DEMO_TENANT_ID) {
+    if (!tenantId) {
       try {
         const sessionContext = await getTenantSessionContext();
         if (sessionContext && sessionContext.isValid) {
@@ -52,6 +50,12 @@ export async function GET(request: NextRequest) {
       } catch {
         // No session available
       }
+    }
+
+    if (!tenantId) {
+      return NextResponse.redirect(
+        `${baseUrl}?integration=google-drive&error=missing_tenant`
+      );
     }
 
     console.log("[Google Drive Callback] Processing for tenant:", tenantId);

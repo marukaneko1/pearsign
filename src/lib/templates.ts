@@ -92,7 +92,7 @@ async function ensureTemplatesTable(): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      org_id VARCHAR(255) NOT NULL DEFAULT 'org-1',
+      org_id VARCHAR(255) NOT NULL,
       name VARCHAR(500) NOT NULL,
       description TEXT,
       category VARCHAR(100) NOT NULL DEFAULT 'General',
@@ -106,7 +106,7 @@ async function ensureTemplatesTable(): Promise<void> {
       fusion_form_url TEXT,
       document_url TEXT,
       document_data TEXT,
-      created_by VARCHAR(255) NOT NULL DEFAULT 'demo-user',
+      created_by VARCHAR(255) NOT NULL DEFAULT '',
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW(),
       metadata JSONB DEFAULT '{}'

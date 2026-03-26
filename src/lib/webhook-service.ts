@@ -1,11 +1,10 @@
-import { sql, DEFAULT_ORG_ID } from "@/lib/db";
+import { sql } from "@/lib/db";
 import crypto from "crypto";
 
-// Retry configuration
 const RETRY_CONFIG = {
   maxRetries: 3,
-  baseDelayMs: 1000, // 1 second
-  maxDelayMs: 30000, // 30 seconds
+  baseDelayMs: 1000,
+  maxDelayMs: 30000,
 };
 
 export type WebhookEventType =
@@ -31,7 +30,6 @@ export interface WebhookPayload {
     completedAt?: string;
     [key: string]: unknown;
   };
-  // Extended payload data (optional, based on webhook settings)
   extended?: {
     pdfBase64?: string;
     fieldValues?: Record<string, unknown>;
@@ -65,7 +63,6 @@ function calculateRetryDelay(attempt: number): number {
     RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt),
     RETRY_CONFIG.maxDelayMs
   );
-  // Add jitter (0-25% of delay)
   return delay + Math.random() * delay * 0.25;
 }
 
@@ -93,12 +90,10 @@ async function deliverWebhook(
   let lastResponseBody = "";
   let attempts = 0;
 
-  // Retry loop with exponential backoff
   for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
     attempts = attempt + 1;
 
     try {
-      // Wait before retry (not on first attempt)
       if (attempt > 0) {
         const delay = calculateRetryDelay(attempt - 1);
         console.log(`[Webhook] Retry attempt ${attempt} for ${url}, waiting ${Math.round(delay)}ms`);
@@ -120,9 +115,7 @@ async function deliverWebhook(
       lastResponse = response;
       lastResponseBody = await response.text();
 
-      // If successful (2xx status), we're done
       if (response.ok) {
-        // Log the successful delivery
         await sql`
           INSERT INTO webhook_logs (webhook_id, event_type, payload, response_status, response_body, success)
           VALUES (
@@ -135,7 +128,6 @@ async function deliverWebhook(
           )
         `;
 
-        // Update webhook status - reset failure count on success
         await sql`
           UPDATE webhooks
           SET last_triggered_at = NOW(), last_status = 'success', failure_count = 0
@@ -146,26 +138,21 @@ async function deliverWebhook(
         return { success: true, status: response.status, body: lastResponseBody, attempts };
       }
 
-      // If it's a 4xx error (client error), don't retry
       if (response.status >= 400 && response.status < 500) {
         console.log(`[Webhook] Client error ${response.status}, not retrying`);
         break;
       }
 
-      // For 5xx errors, we'll retry
       console.log(`[Webhook] Server error ${response.status}, will retry`);
 
     } catch (error) {
       lastError = error as Error;
       console.error(`[Webhook] Network error on attempt ${attempt + 1}:`, error);
-      // Will retry on network errors
     }
   }
 
-  // All retries exhausted or non-retryable error
   console.error(`[Webhook] Delivery failed to ${url} after ${attempts} attempts`);
 
-  // Log the failure
   await sql`
     INSERT INTO webhook_logs (webhook_id, event_type, payload, response_status, response_body, success)
     VALUES (
@@ -178,7 +165,6 @@ async function deliverWebhook(
     )
   `;
 
-  // Update webhook status
   await sql`
     UPDATE webhooks
     SET last_triggered_at = NOW(), last_status = 'failed', failure_count = failure_count + 1
@@ -204,7 +190,6 @@ async function fetchExtendedPayload(
 
   try {
     if (options.includePdf || options.includeFieldValues) {
-      // Get signing session data
       const sessions = await sql`
         SELECT field_values, signed_pdf_data, signed_pdf_object_path FROM envelope_signing_sessions
         WHERE envelope_id = ${envelopeId} AND status = 'completed'
@@ -235,7 +220,6 @@ async function fetchExtendedPayload(
     }
 
     if (options.includeAuditTrail) {
-      // Get audit trail
       const auditLogs = await sql`
         SELECT action, actor_name, actor_email, created_at, details
         FROM audit_logs
@@ -264,11 +248,13 @@ async function fetchExtendedPayload(
 export async function triggerWebhooks(
   eventType: WebhookEventType,
   data: WebhookPayload["data"],
-  orgId?: string
+  orgId: string
 ): Promise<void> {
-  const targetOrgId = orgId || DEFAULT_ORG_ID;
+  if (!orgId) {
+    throw new Error('orgId is required');
+  }
+  const targetOrgId = orgId;
   try {
-    // Find all enabled webhooks that subscribe to this event (including payload_options)
     const webhooks = await sql`
       SELECT id, url, secret, events, payload_options FROM webhooks
       WHERE org_id = ${targetOrgId}
@@ -277,17 +263,14 @@ export async function triggerWebhooks(
         AND failure_count < 10
     `;
 
-    // Deliver to all matching webhooks in parallel
     await Promise.all(
       webhooks.map(async (webhook) => {
-        // Build payload with optional extended data
         const payload: WebhookPayload = {
           event: eventType,
           timestamp: new Date().toISOString(),
           data,
         };
 
-        // Fetch extended payload if any options are enabled
         const options = (webhook.payload_options as PayloadOptions) || {
           includePdf: false,
           includeFieldValues: true,
@@ -367,15 +350,17 @@ export async function notifyDocumentSigned(data: {
   documentTitle: string;
   signerEmail: string;
   signerName: string;
+  orgId: string;
 }): Promise<void> {
+  if (!data.orgId) {
+    throw new Error('orgId is required');
+  }
   try {
-    // Trigger webhooks
-    await triggerWebhooks("document.signed", data);
+    await triggerWebhooks("document.signed", data, data.orgId);
 
-    // Check for Slack integration
     const slackConfig = await sql`
       SELECT config FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID}
+      WHERE org_id = ${data.orgId}
         AND integration_type = 'slack'
         AND enabled = true
     `;
@@ -404,19 +389,21 @@ export async function notifyDocumentCompleted(data: {
   envelopeId: string;
   documentTitle: string;
   recipientCount: number;
+  orgId: string;
 }): Promise<void> {
+  if (!data.orgId) {
+    throw new Error('orgId is required');
+  }
   try {
-    // Trigger webhooks
     await triggerWebhooks("document.completed", {
       ...data,
       status: "completed",
       completedAt: new Date().toISOString(),
-    });
+    }, data.orgId);
 
-    // Check for Slack integration
     const slackConfig = await sql`
       SELECT config FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID}
+      WHERE org_id = ${data.orgId}
         AND integration_type = 'slack'
         AND enabled = true
     `;
@@ -445,14 +432,15 @@ export async function notifyDocumentVoided(data: {
   envelopeId: string;
   documentTitle: string;
   reason: string;
-  orgId?: string;
+  orgId: string;
 }): Promise<void> {
-  const orgId = data.orgId || DEFAULT_ORG_ID;
+  if (!data.orgId) {
+    throw new Error('orgId is required');
+  }
+  const orgId = data.orgId;
   try {
-    // Trigger webhooks
     await triggerWebhooks("document.voided", data, orgId);
 
-    // Check for Slack integration
     const slackConfig = await sql`
       SELECT config FROM integration_configs
       WHERE org_id = ${orgId}
@@ -485,18 +473,20 @@ export async function notifyDocumentDeclined(data: {
   signerEmail: string;
   signerName: string;
   reason: string;
+  orgId: string;
 }): Promise<void> {
+  if (!data.orgId) {
+    throw new Error('orgId is required');
+  }
   try {
-    // Trigger webhooks
     await triggerWebhooks("document.declined", {
       ...data,
       declinedAt: new Date().toISOString(),
-    });
+    }, data.orgId);
 
-    // Check for Slack integration
     const slackConfig = await sql`
       SELECT config FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID}
+      WHERE org_id = ${data.orgId}
         AND integration_type = 'slack'
         AND enabled = true
     `;
@@ -527,15 +517,17 @@ export async function notifyDocumentExpired(data: {
   documentTitle: string;
   expiredAt: string;
   recipientCount: number;
+  orgId: string;
 }): Promise<void> {
+  if (!data.orgId) {
+    throw new Error('orgId is required');
+  }
   try {
-    // Trigger webhooks
-    await triggerWebhooks("document.expired", data);
+    await triggerWebhooks("document.expired", data, data.orgId);
 
-    // Check for Slack integration
     const slackConfig = await sql`
       SELECT config FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID}
+      WHERE org_id = ${data.orgId}
         AND integration_type = 'slack'
         AND enabled = true
     `;

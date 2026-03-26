@@ -139,7 +139,7 @@ export const GET = withTenant(async (request: NextRequest, { context, tenantId }
         description: env.message || '',
         status: envelopeStatus,
         signingOrder: 'sequential',
-        organizationId: tenantId, // Use tenantId instead of DEFAULT_ORG_ID
+        organizationId: tenantId,
         createdBy: context.user.id,
         recipients: recipients.map((r, index) => {
           // Map recipient status to user-friendly labels

@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
   try {
     const invoiceCounts = await sql`
       SELECT tenant_id, COUNT(*) as count
-      FROM invoices
+      FROM billing_invoices
       GROUP BY tenant_id
     `;
 
@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
 async function seedInvoicesForTenant(tenantId: string): Promise<number> {
   // Check if tenant already has invoices
   const existing = await sql`
-    SELECT COUNT(*) as count FROM invoices WHERE tenant_id = ${tenantId}
+    SELECT COUNT(*) as count FROM billing_invoices WHERE tenant_id = ${tenantId}
   `;
 
   if (parseInt(existing[0]?.count || '0') > 0) {
@@ -199,7 +199,7 @@ async function seedInvoicesForTenant(tenantId: string): Promise<number> {
     const invoiceNumber = `INV-${createdAt.getFullYear()}${String(createdAt.getMonth() + 1).padStart(2, '0')}-${String(created + 1).padStart(4, '0')}`;
 
     await sql`
-      INSERT INTO invoices (
+      INSERT INTO billing_invoices (
         id, tenant_id, stripe_invoice_id, amount, currency, status,
         pdf_url, hosted_invoice_url, period_start, period_end, created_at
       ) VALUES (
@@ -249,7 +249,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (tenantId) {
-      await sql`DELETE FROM invoices WHERE tenant_id = ${tenantId}`;
+      await sql`DELETE FROM billing_invoices WHERE tenant_id = ${tenantId}`;
       await sql`DELETE FROM tenant_invoices WHERE org_id = ${tenantId}`.catch(() => {});
       return NextResponse.json({
         success: true,
@@ -258,7 +258,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete all
-    const result = await sql`DELETE FROM invoices RETURNING id`;
+    const result = await sql`DELETE FROM billing_invoices RETURNING id`;
     await sql`DELETE FROM tenant_invoices`.catch(() => {});
 
     return NextResponse.json({

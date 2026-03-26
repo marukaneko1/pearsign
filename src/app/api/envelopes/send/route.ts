@@ -64,9 +64,6 @@ async function ensureDocumentsTable() {
   } catch {}
 }
 
-const DEFAULT_USER_ID = 'demo-user';
-const DEFAULT_USER_NAME = 'Demo User';
-
 interface SignatureField {
   id: string;
   type: string;

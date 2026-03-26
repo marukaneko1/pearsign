@@ -71,6 +71,14 @@ async function verifyStripeSignature(
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+  if (!webhookSecret) {
+    console.error('[Stripe Webhook] STRIPE_WEBHOOK_SECRET not configured - rejecting webhook');
+    return NextResponse.json(
+      { error: 'Webhook verification not configured' },
+      { status: 500 }
+    );
+  }
+
   // Get the raw body as text for signature verification
   let rawBody: string;
   try {
@@ -86,16 +94,14 @@ export async function POST(request: NextRequest) {
   // Get Stripe signature header
   const signature = request.headers.get('stripe-signature');
 
-  // Verify signature (if webhook secret is configured)
-  if (webhookSecret) {
-    const verification = await verifyStripeSignature(rawBody, signature, webhookSecret);
-    if (!verification.valid) {
-      console.error('[Stripe Webhook] Signature verification failed:', verification.error);
-      return NextResponse.json(
-        { error: verification.error },
-        { status: 400 }
-      );
-    }
+  // Verify signature
+  const verification = await verifyStripeSignature(rawBody, signature, webhookSecret);
+  if (!verification.valid) {
+    console.error('[Stripe Webhook] Signature verification failed:', verification.error);
+    return NextResponse.json(
+      { error: verification.error },
+      { status: 400 }
+    );
   }
 
   // Parse the event
@@ -115,18 +121,16 @@ export async function POST(request: NextRequest) {
   // Handle the event
   try {
     await BillingService.handleWebhookEvent(event);
-
-    console.log('[Stripe Webhook] Event processed successfully:', event.type);
-    return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error('[Stripe Webhook] Error processing event:', error);
-    // Return 200 to acknowledge receipt (Stripe will retry on 5xx)
-    // Log the error but don't fail the webhook
-    return NextResponse.json({
-      received: true,
-      warning: 'Event processing encountered an error but was acknowledged'
-    });
+  } catch (processingError) {
+    console.error('[Stripe Webhook] Processing error:', processingError);
+    return NextResponse.json(
+      { error: 'Webhook processing failed' },
+      { status: 500 }
+    );
   }
+
+  console.log('[Stripe Webhook] Event processed successfully:', event.type);
+  return NextResponse.json({ received: true });
 }
 
 /**

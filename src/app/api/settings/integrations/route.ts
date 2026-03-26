@@ -49,39 +49,11 @@ const AVAILABLE_INTEGRATIONS = [
     configFields: ["instanceUrl", "accessToken"],
   },
   {
-    id: "zapier",
-    name: "Zapier",
-    description: "Connect PearSign to 5,000+ apps",
-    category: "Automation",
-    configFields: ["webhookUrl"],
-  },
-  {
     id: "dropbox",
     name: "Dropbox",
     description: "Store signed documents in Dropbox",
     category: "Storage",
     configFields: ["accessToken", "folderPath"],
-  },
-  {
-    id: "hubspot",
-    name: "HubSpot",
-    description: "Send documents directly from HubSpot",
-    category: "CRM",
-    configFields: ["apiKey", "portalId"],
-  },
-  {
-    id: "microsoft-teams",
-    name: "Microsoft Teams",
-    description: "Get notifications in Teams channels",
-    category: "Communication",
-    configFields: ["webhookUrl"],
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    description: "Log signed documents to Notion databases",
-    category: "Productivity",
-    configFields: ["apiKey", "databaseId"],
   },
 ];
 

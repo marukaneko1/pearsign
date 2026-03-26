@@ -33,6 +33,7 @@ import {
 import { envelopesApi, documentsApi, Envelope } from "@/lib/api-client";
 import * as pdfjsLib from 'pdfjs-dist';
 import { usePinchZoom, pinchZoomStyles } from "@/hooks/use-pinch-zoom";
+import { useAuth } from "@/contexts/auth-context";
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
@@ -82,14 +83,20 @@ const RECIPIENT_COLORS = [
 
 const generateDemoId = () => `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const createDemoEnvelope = (title: string, message: string, recipients: Recipient[], fields: SignatureField[]): Envelope => ({
+const createDemoEnvelope = (
+  title: string,
+  message: string,
+  recipients: Recipient[],
+  fields: SignatureField[],
+  createdBy = '',
+): Envelope => ({
   id: generateDemoId(),
   title,
   description: message,
   status: 'in_signing',
   signingOrder: 'sequential',
-  organizationId: 'demo-org',
-  createdBy: 'demo-user',
+  organizationId: '',
+  createdBy,
   recipients: recipients.filter(r => r.name && r.email).map((r, index) => ({
     id: r.id,
     name: r.name,
@@ -107,6 +114,7 @@ const createDemoEnvelope = (title: string, message: string, recipients: Recipien
 });
 
 export function SendDocumentDialog({ open, onOpenChange, onSuccess }: SendDocumentDialogProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>('upload');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -410,7 +418,7 @@ export function SendDocumentDialog({ open, onOpenChange, onSuccess }: SendDocume
     try {
       if (DEMO_MODE) {
         await new Promise(resolve => setTimeout(resolve, 1500));
-        const demoEnvelope = createDemoEnvelope(title, message, recipients, fields);
+        const demoEnvelope = createDemoEnvelope(title, message, recipients, fields, user?.id ?? '');
         setCreatedEnvelope(demoEnvelope);
         setStep('success');
         onSuccess?.(demoEnvelope);

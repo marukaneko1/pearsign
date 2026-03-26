@@ -1,4 +1,4 @@
-import { sql, DEFAULT_ORG_ID } from "@/lib/db";
+import { sql } from "@/lib/db";
 
 interface DropboxConfig {
   accessToken: string;
@@ -14,8 +14,7 @@ interface DropboxConfig {
 /**
  * Refresh Dropbox access token if needed
  */
-async function refreshTokenIfNeeded(config: DropboxConfig): Promise<string> {
-  // Dropbox tokens are long-lived, but we can implement refresh if needed
+async function refreshTokenIfNeeded(config: DropboxConfig, tenantId: string): Promise<string> {
   if (!config.refreshToken) {
     return config.accessToken;
   }
@@ -46,7 +45,6 @@ async function refreshTokenIfNeeded(config: DropboxConfig): Promise<string> {
 
     const data = await response.json();
 
-    // Update stored config with new token
     const newConfig = {
       ...config,
       accessToken: data.access_token,
@@ -55,7 +53,7 @@ async function refreshTokenIfNeeded(config: DropboxConfig): Promise<string> {
     await sql`
       UPDATE integration_configs
       SET config = ${JSON.stringify(newConfig)}::jsonb, updated_at = NOW()
-      WHERE org_id = ${DEFAULT_ORG_ID} AND integration_type = 'dropbox'
+      WHERE org_id = ${tenantId} AND integration_type = 'dropbox'
     `;
 
     return data.access_token;
@@ -68,11 +66,11 @@ async function refreshTokenIfNeeded(config: DropboxConfig): Promise<string> {
 /**
  * Get Dropbox config from database
  */
-async function getDropboxConfig(): Promise<DropboxConfig | null> {
+async function getDropboxConfig(tenantId: string): Promise<DropboxConfig | null> {
   try {
     const result = await sql`
       SELECT config, enabled FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID} AND integration_type = 'dropbox' AND enabled = true
+      WHERE org_id = ${tenantId} AND integration_type = 'dropbox' AND enabled = true
     `;
 
     if (result.length === 0) {
@@ -101,7 +99,6 @@ async function ensureFolderExists(accessToken: string, folderPath: string): Prom
         autorename: false,
       }),
     });
-    // Ignore errors - folder might already exist
   } catch {
     // Folder might already exist, which is fine
   }
@@ -112,25 +109,23 @@ async function ensureFolderExists(accessToken: string, folderPath: string): Prom
  */
 export async function uploadToDropbox(
   fileName: string,
-  fileContent: string, // Base64 encoded
+  fileContent: string,
+  tenantId: string
 ): Promise<{ success: boolean; path?: string; error?: string }> {
   try {
-    const config = await getDropboxConfig();
+    const config = await getDropboxConfig(tenantId);
     if (!config) {
       return { success: false, error: "Dropbox not connected" };
     }
 
-    const accessToken = await refreshTokenIfNeeded(config);
+    const accessToken = await refreshTokenIfNeeded(config, tenantId);
     const folderPath = config.folderPath || "/PearSign/Signed Documents";
 
-    // Ensure folder exists
     await ensureFolderExists(accessToken, folderPath);
 
-    // Decode base64 content
     const binaryContent = Buffer.from(fileContent, "base64");
     const filePath = `${folderPath}/${fileName}`;
 
-    // Upload file
     const response = await fetch("https://content.dropboxapi.com/2/files/upload", {
       method: "POST",
       headers: {
@@ -168,8 +163,8 @@ export async function uploadToDropbox(
 /**
  * Check if Dropbox auto-save is enabled
  */
-export async function isDropboxAutoSaveEnabled(): Promise<boolean> {
-  const config = await getDropboxConfig();
+export async function isDropboxAutoSaveEnabled(tenantId: string): Promise<boolean> {
+  const config = await getDropboxConfig(tenantId);
   return config?.autoSave === "true";
 }
 
@@ -179,10 +174,11 @@ export async function isDropboxAutoSaveEnabled(): Promise<boolean> {
 export async function saveSignedDocumentToDropbox(
   documentTitle: string,
   pdfBase64: string,
-  signerName: string
+  signerName: string,
+  tenantId: string
 ): Promise<void> {
   try {
-    const isEnabled = await isDropboxAutoSaveEnabled();
+    const isEnabled = await isDropboxAutoSaveEnabled(tenantId);
     if (!isEnabled) {
       return;
     }
@@ -190,7 +186,7 @@ export async function saveSignedDocumentToDropbox(
     const timestamp = new Date().toISOString().split("T")[0];
     const fileName = `${documentTitle} - Signed by ${signerName} - ${timestamp}.pdf`;
 
-    const result = await uploadToDropbox(fileName, pdfBase64);
+    const result = await uploadToDropbox(fileName, pdfBase64, tenantId);
 
     if (result.success) {
       console.log("[Dropbox] Auto-saved document:", result.path);

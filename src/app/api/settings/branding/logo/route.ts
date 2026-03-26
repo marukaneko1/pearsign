@@ -12,9 +12,6 @@ import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
 import { getTenantSessionContext } from '@/lib/tenant-session';
 import { TenantObjectStorage } from '@/lib/object-storage';
 
-// Default tenant ID for demo mode
-const DEMO_TENANT_ID = 'demo-org';
-
 /**
  * POST /api/settings/branding/logo
  * Upload a logo image and store it in the database for the current tenant
@@ -121,8 +118,7 @@ export const POST = withTenant(
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try to get tenant from session, fall back to demo
-    let orgId = DEMO_TENANT_ID;
+    let orgId: string | null = null;
 
     try {
       const sessionContext = await getTenantSessionContext();
@@ -130,7 +126,7 @@ export async function GET(request: NextRequest) {
         orgId = sessionContext.session.tenantId;
       }
     } catch {
-      // No session available, use demo
+      // No session available
     }
 
     // Also check for tenant query param (for emails, etc.)
@@ -138,6 +134,10 @@ export async function GET(request: NextRequest) {
     const tenantParam = searchParams.get('tenant');
     if (tenantParam) {
       orgId = tenantParam;
+    }
+
+    if (!orgId) {
+      return new NextResponse(null, { status: 401 });
     }
 
     const result = await sql`

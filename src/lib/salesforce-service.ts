@@ -1,4 +1,4 @@
-import { sql, DEFAULT_ORG_ID } from "@/lib/db";
+import { sql } from "@/lib/db";
 
 interface SalesforceConfig {
   accessToken: string;
@@ -17,7 +17,7 @@ interface SalesforceConfig {
 /**
  * Refresh Salesforce access token
  */
-async function refreshAccessToken(config: SalesforceConfig): Promise<string> {
+async function refreshAccessToken(config: SalesforceConfig, tenantId: string): Promise<string> {
   const clientId = process.env.SALESFORCE_CLIENT_ID;
   const clientSecret = process.env.SALESFORCE_CLIENT_SECRET;
   const salesforceLoginUrl = process.env.SALESFORCE_LOGIN_URL || "https://login.salesforce.com";
@@ -46,7 +46,6 @@ async function refreshAccessToken(config: SalesforceConfig): Promise<string> {
     throw new Error("Failed to refresh access token");
   }
 
-  // Update stored config with new token
   const newConfig = {
     ...config,
     accessToken: data.access_token,
@@ -56,7 +55,7 @@ async function refreshAccessToken(config: SalesforceConfig): Promise<string> {
   await sql`
     UPDATE integration_configs
     SET config = ${JSON.stringify(newConfig)}::jsonb, updated_at = NOW()
-    WHERE org_id = ${DEFAULT_ORG_ID} AND integration_type = 'salesforce'
+    WHERE org_id = ${tenantId} AND integration_type = 'salesforce'
   `;
 
   return data.access_token;
@@ -65,11 +64,11 @@ async function refreshAccessToken(config: SalesforceConfig): Promise<string> {
 /**
  * Get Salesforce config from database
  */
-async function getSalesforceConfig(): Promise<SalesforceConfig | null> {
+async function getSalesforceConfig(tenantId: string): Promise<SalesforceConfig | null> {
   try {
     const result = await sql`
       SELECT config, enabled FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID} AND integration_type = 'salesforce' AND enabled = true
+      WHERE org_id = ${tenantId} AND integration_type = 'salesforce' AND enabled = true
     `;
 
     if (result.length === 0) {
@@ -86,17 +85,17 @@ async function getSalesforceConfig(): Promise<SalesforceConfig | null> {
  * Make an authenticated request to Salesforce API
  */
 async function salesforceRequest(
+  tenantId: string,
   endpoint: string,
   options: RequestInit = {}
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
-  const config = await getSalesforceConfig();
+  const config = await getSalesforceConfig(tenantId);
   if (!config) {
     return { success: false, error: "Salesforce not connected" };
   }
 
   let accessToken = config.accessToken;
 
-  // Try the request
   let response = await fetch(`${config.instanceUrl}${endpoint}`, {
     ...options,
     headers: {
@@ -106,10 +105,9 @@ async function salesforceRequest(
     },
   });
 
-  // If unauthorized, try to refresh token and retry
   if (response.status === 401) {
     try {
-      accessToken = await refreshAccessToken(config);
+      accessToken = await refreshAccessToken(config, tenantId);
       response = await fetch(`${config.instanceUrl}${endpoint}`, {
         ...options,
         headers: {
@@ -138,8 +136,9 @@ async function salesforceRequest(
 /**
  * Search for a contact by email in Salesforce
  */
-export async function findContactByEmail(email: string): Promise<{ id: string; name: string } | null> {
+export async function findContactByEmail(tenantId: string, email: string): Promise<{ id: string; name: string } | null> {
   const result = await salesforceRequest(
+    tenantId,
     `/services/data/v59.0/query?q=${encodeURIComponent(`SELECT Id, Name, Email FROM Contact WHERE Email = '${email}' LIMIT 1`)}`
   );
 
@@ -158,17 +157,17 @@ export async function findContactByEmail(email: string): Promise<{ id: string; n
 /**
  * Create a contact in Salesforce
  */
-export async function createContact(data: {
+export async function createContact(tenantId: string, data: {
   firstName: string;
   lastName: string;
   email: string;
   company?: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  // First, find or create the Account if company is provided
   let accountId: string | undefined;
 
   if (data.company) {
     const accountResult = await salesforceRequest(
+      tenantId,
       `/services/data/v59.0/query?q=${encodeURIComponent(`SELECT Id FROM Account WHERE Name = '${data.company}' LIMIT 1`)}`
     );
 
@@ -176,8 +175,7 @@ export async function createContact(data: {
     if (accounts && accounts.length > 0) {
       accountId = accounts[0].Id;
     } else {
-      // Create account
-      const newAccountResult = await salesforceRequest("/services/data/v59.0/sobjects/Account", {
+      const newAccountResult = await salesforceRequest(tenantId, "/services/data/v59.0/sobjects/Account", {
         method: "POST",
         body: JSON.stringify({ Name: data.company }),
       });
@@ -197,7 +195,7 @@ export async function createContact(data: {
     contactData.AccountId = accountId;
   }
 
-  const result = await salesforceRequest("/services/data/v59.0/sobjects/Contact", {
+  const result = await salesforceRequest(tenantId, "/services/data/v59.0/sobjects/Contact", {
     method: "POST",
     body: JSON.stringify(contactData),
   });
@@ -212,19 +210,18 @@ export async function createContact(data: {
 /**
  * Log a document signing event as a Task in Salesforce
  */
-export async function logSigningTask(data: {
+export async function logSigningTask(tenantId: string, data: {
   contactEmail: string;
   documentTitle: string;
   signedAt: Date;
   envelopeId: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  const config = await getSalesforceConfig();
+  const config = await getSalesforceConfig(tenantId);
   if (!config || config.createTasks !== "true") {
     return { success: false, error: "Task creation not enabled" };
   }
 
-  // Find the contact
-  const contact = await findContactByEmail(data.contactEmail);
+  const contact = await findContactByEmail(tenantId, data.contactEmail);
   if (!contact) {
     return { success: false, error: "Contact not found in Salesforce" };
   }
@@ -238,7 +235,7 @@ export async function logSigningTask(data: {
     ActivityDate: data.signedAt.toISOString().split("T")[0],
   };
 
-  const result = await salesforceRequest("/services/data/v59.0/sobjects/Task", {
+  const result = await salesforceRequest(tenantId, "/services/data/v59.0/sobjects/Task", {
     method: "POST",
     body: JSON.stringify(taskData),
   });
@@ -254,31 +251,28 @@ export async function logSigningTask(data: {
 /**
  * Sync a signer to Salesforce as a Contact (if not exists)
  */
-export async function syncSignerToSalesforce(data: {
+export async function syncSignerToSalesforce(tenantId: string, data: {
   email: string;
   name: string;
   company?: string;
 }): Promise<void> {
-  const config = await getSalesforceConfig();
+  const config = await getSalesforceConfig(tenantId);
   if (!config || config.syncContacts !== "true") {
     return;
   }
 
   try {
-    // Check if contact exists
-    const existing = await findContactByEmail(data.email);
+    const existing = await findContactByEmail(tenantId, data.email);
     if (existing) {
       console.log("[Salesforce] Contact already exists:", data.email);
       return;
     }
 
-    // Parse name into first/last
     const nameParts = data.name.trim().split(" ");
     const firstName = nameParts[0] || "Unknown";
     const lastName = nameParts.slice(1).join(" ") || "Contact";
 
-    // Create contact
-    const result = await createContact({
+    const result = await createContact(tenantId, {
       firstName,
       lastName,
       email: data.email,
@@ -298,21 +292,21 @@ export async function syncSignerToSalesforce(data: {
 /**
  * Check if Salesforce integration is enabled
  */
-export async function isSalesforceEnabled(): Promise<boolean> {
-  const config = await getSalesforceConfig();
+export async function isSalesforceEnabled(tenantId: string): Promise<boolean> {
+  const config = await getSalesforceConfig(tenantId);
   return config !== null;
 }
 
 /**
  * Get Salesforce connection info
  */
-export async function getSalesforceInfo(): Promise<{
+export async function getSalesforceInfo(tenantId: string): Promise<{
   connected: boolean;
   instanceUrl?: string;
   userName?: string;
   userEmail?: string;
 } | null> {
-  const config = await getSalesforceConfig();
+  const config = await getSalesforceConfig(tenantId);
   if (!config) {
     return { connected: false };
   }

@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { listGoogleDriveFolders } from "@/lib/google-drive-service";
+import { withTenant, TenantApiContext } from "@/lib/tenant-middleware";
 
 /**
  * GET /api/settings/integrations/google-drive/folders
  * List available Google Drive folders for the folder picker
  */
-export async function GET() {
+export const GET = withTenant(async (_request: NextRequest, { tenantId }: TenantApiContext) => {
   try {
-    const folders = await listGoogleDriveFolders();
+    const folders = await listGoogleDriveFolders(tenantId);
 
     return NextResponse.json({
       success: true,
@@ -20,4 +21,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

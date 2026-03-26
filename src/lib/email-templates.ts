@@ -1033,44 +1033,57 @@ export const DEFAULT_SUBJECTS: Record<EmailTemplateType, string> = {
  */
 export async function initializeEmailTemplates(): Promise<void> {
   try {
-    // Check if table exists and has correct schema
-    const tableCheck = await sql`
-      SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'email_templates' AND column_name = 'html_body'
+    // Create table if it doesn't exist at all (fresh install)
+    await sql`
+      CREATE TABLE IF NOT EXISTS email_templates (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL DEFAULT 'system',
+        type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        subject TEXT NOT NULL,
+        html_body TEXT NOT NULL,
+        text_body TEXT,
+        variables TEXT[] DEFAULT '{}',
+        is_active BOOLEAN DEFAULT true,
+        is_default BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(organization_id, type)
+      )
     `;
 
-    // If html_body column doesn't exist, we need to migrate
-    if (tableCheck.length === 0) {
-      console.log('[EmailTemplates] Migrating email_templates table to new schema...');
+    // Safely add any missing columns for existing tables (non-destructive migration)
+    const missingColumns: Array<{ name: string; definition: string }> = [
+      { name: 'organization_id', definition: "TEXT NOT NULL DEFAULT 'system'" },
+      { name: 'type', definition: 'TEXT' },
+      { name: 'name', definition: 'TEXT' },
+      { name: 'description', definition: 'TEXT' },
+      { name: 'subject', definition: 'TEXT' },
+      { name: 'html_body', definition: 'TEXT' },
+      { name: 'text_body', definition: 'TEXT' },
+      { name: 'variables', definition: "TEXT[] DEFAULT '{}'" },
+      { name: 'is_active', definition: 'BOOLEAN DEFAULT true' },
+      { name: 'is_default', definition: 'BOOLEAN DEFAULT true' },
+      { name: 'created_at', definition: 'TIMESTAMP DEFAULT NOW()' },
+      { name: 'updated_at', definition: 'TIMESTAMP DEFAULT NOW()' },
+    ];
 
-      // Drop old table and recreate with new schema
-      await sql`DROP TABLE IF EXISTS email_templates`;
-
-      await sql`
-        CREATE TABLE email_templates (
-          id TEXT PRIMARY KEY,
-          organization_id TEXT NOT NULL DEFAULT 'org-1',
-          type TEXT NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          subject TEXT NOT NULL,
-          html_body TEXT NOT NULL,
-          text_body TEXT,
-          variables TEXT[] DEFAULT '{}',
-          is_active BOOLEAN DEFAULT true,
-          is_default BOOLEAN DEFAULT true,
-          created_at TIMESTAMP DEFAULT NOW(),
-          updated_at TIMESTAMP DEFAULT NOW(),
-          UNIQUE(organization_id, type)
-        )
-      `;
-
-      console.log('[EmailTemplates] Table recreated with new schema');
+    for (const col of missingColumns) {
+      try {
+        await sql.raw(
+          `ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS ${col.name} ${col.definition}`
+        );
+      } catch (colErr) {
+        console.warn(`[EmailTemplates] Could not add column ${col.name}:`, colErr);
+      }
     }
 
-    const DEFAULT_ORG_ID = 'org-1';
+    console.log('[EmailTemplates] Table schema verified (non-destructive migration)');
 
-    // Seed org-1 defaults
+    const SYSTEM_ORG_ID = 'system';
+
+    // Seed system-level defaults
     for (const [type, metadata] of Object.entries(TEMPLATE_METADATA)) {
       const templateType = type as EmailTemplateType;
       const id = `tmpl-${templateType}`;
@@ -1080,7 +1093,7 @@ export async function initializeEmailTemplates(): Promise<void> {
           id, organization_id, type, name, description, subject, html_body, text_body, variables, is_active, is_default
         ) VALUES (
           ${id},
-          ${DEFAULT_ORG_ID},
+          ${SYSTEM_ORG_ID},
           ${templateType},
           ${metadata.name},
           ${metadata.description},
@@ -1102,7 +1115,7 @@ export async function initializeEmailTemplates(): Promise<void> {
     }
 
     // Also update all other tenants' default templates to latest designs
-    const tenants = await sql`SELECT DISTINCT organization_id FROM email_templates WHERE organization_id != ${DEFAULT_ORG_ID}`;
+    const tenants = await sql`SELECT DISTINCT organization_id FROM email_templates WHERE organization_id != ${SYSTEM_ORG_ID}`;
     for (const tenant of tenants) {
       for (const [type] of Object.entries(TEMPLATE_METADATA)) {
         const templateType = type as EmailTemplateType;

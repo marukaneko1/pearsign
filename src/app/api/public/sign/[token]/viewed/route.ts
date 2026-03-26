@@ -98,23 +98,13 @@ export async function POST(request: NextRequest, context: RouteParams) {
         // Fallback to user_profiles
         if (!senderEmail) {
           try {
-            // Try session org_id first, then default org-1
+            // Try session org_id first
             let profileResult = await sql`
               SELECT first_name, last_name, email
               FROM user_profiles
               WHERE organization_id = ${session.org_id as string}
               LIMIT 1
             `;
-
-            if (profileResult.length === 0) {
-              console.log("[Viewed POST] No profile for org:", session.org_id, "- trying org-1");
-              profileResult = await sql`
-                SELECT first_name, last_name, email
-                FROM user_profiles
-                WHERE organization_id = 'org-1'
-                LIMIT 1
-              `;
-            }
 
             if (profileResult.length === 0) {
               // Try any profile

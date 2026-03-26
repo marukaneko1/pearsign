@@ -122,6 +122,16 @@ export const POST = withTenant(
         );
       }
 
+      // Check webhook limit
+      const webhookCount = await sql`SELECT COUNT(*) as count FROM webhooks WHERE org_id = ${tenantId}`;
+      const webhookLimit = context.features?.maxWebhooks || 5;
+      if (webhookLimit !== -1 && parseInt(webhookCount[0]?.count || '0') >= webhookLimit) {
+        return NextResponse.json(
+          { error: 'Webhook limit reached', message: `Your plan allows ${webhookLimit} webhooks. Please upgrade.`, upgradeRequired: true },
+          { status: 403 }
+        );
+      }
+
       // Generate a random secret if not provided
       const webhookSecret = secret || `whsec_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
 

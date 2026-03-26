@@ -61,6 +61,7 @@ import { usePinchZoom, pinchZoomStyles } from "@/hooks/use-pinch-zoom";
 import { useFieldHistory } from "@/hooks/use-field-history";
 import { contentToPdf, pdfBytesToBase64 } from "@/lib/html-to-pdf";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
@@ -140,14 +141,20 @@ const RECIPIENT_COLORS = [
 
 const generateDemoId = () => `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const createDemoEnvelope = (title: string, message: string, recipients: Recipient[], fields: SignatureField[]): Envelope => ({
+const createDemoEnvelope = (
+  title: string,
+  message: string,
+  recipients: Recipient[],
+  fields: SignatureField[],
+  createdBy = '',
+): Envelope => ({
   id: generateDemoId(),
   title,
   description: message,
   status: 'in_signing',
   signingOrder: 'sequential',
-  organizationId: 'demo-org',
-  createdBy: 'demo-user',
+  organizationId: '',
+  createdBy,
   recipients: recipients.filter(r => r.name && r.email).map((r, index) => ({
     id: r.id,
     name: r.name,
@@ -215,6 +222,7 @@ const FIELD_GROUPS: { key: FieldGroup; label: string }[] = [
 const LOCAL_FIELD_TYPES = FIELD_TYPE_CONFIG;
 
 export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialContent }: DocumentPrepareFlowProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>(initialFile || initialContent ? 'recipients' : 'upload');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -1002,8 +1010,8 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
           description: message,
           status: 'in_signing',
           signingOrder: 'sequential',
-          organizationId: 'demo-org',
-          createdBy: 'demo-user',
+          organizationId: result.data.orgId || '',
+          createdBy: user?.id ?? '',
           recipients: validRecipients.map((r, index) => ({
             id: r.id,
             name: r.name,
@@ -1026,7 +1034,7 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
       } else {
         // Fallback to demo mode if API fails
         console.warn('API call failed, using demo mode:', result.error);
-        const demoEnvelope = createDemoEnvelope(title, message, recipients, fields);
+        const demoEnvelope = createDemoEnvelope(title, message, recipients, fields, user?.id ?? '');
         setSentEnvelope(demoEnvelope);
         setShowSuccess(true);
         saveContacts(validRecipients);
@@ -1034,7 +1042,7 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
     } catch (error) {
       // Fallback to demo mode on network error
       console.warn('Network error, using demo mode:', error);
-      const demoEnvelope = createDemoEnvelope(title, message, recipients, fields);
+      const demoEnvelope = createDemoEnvelope(title, message, recipients, fields, user?.id ?? '');
       setSentEnvelope(demoEnvelope);
       setShowSuccess(true);
       saveContacts(validRecipients);

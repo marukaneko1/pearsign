@@ -66,7 +66,13 @@ export async function POST(request: NextRequest, context: RouteParams) {
     }
 
     // Extract tenant ID from the form
-    const tenantId = form.orgId || 'org-1';
+    const tenantId = form.orgId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Missing tenant context' },
+        { status: 400 }
+      );
+    }
 
     // Validate required fields
     if (form.requireName && !body.signerName) {

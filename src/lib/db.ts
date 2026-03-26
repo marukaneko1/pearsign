@@ -52,5 +52,3 @@ export const sql = sqlTagged as typeof sqlTagged & {
 };
 
 export { pool };
-
-export const DEFAULT_ORG_ID = 'org-1';

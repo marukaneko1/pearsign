@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+      - name: Lint
+        run: npx next lint
+        continue-on-error: true
+
+      - name: Run tests
+        run: npx vitest run
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          ADMIN_SECRET_KEY: test-key
+          CERT_ENCRYPTION_KEY: test-key
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test

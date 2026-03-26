@@ -1,4 +1,4 @@
-import { sql, DEFAULT_ORG_ID } from "@/lib/db";
+import { sql } from "@/lib/db";
 
 interface GoogleDriveConfig {
   accessToken: string;
@@ -12,8 +12,7 @@ interface GoogleDriveConfig {
 /**
  * Refresh Google Drive access token if needed
  */
-async function refreshTokenIfNeeded(config: GoogleDriveConfig): Promise<string> {
-  // Check if token is still valid (with 5 minute buffer)
+async function refreshTokenIfNeeded(config: GoogleDriveConfig, tenantId: string): Promise<string> {
   if (config.expiresAt > Date.now() + 300000) {
     return config.accessToken;
   }
@@ -45,7 +44,6 @@ async function refreshTokenIfNeeded(config: GoogleDriveConfig): Promise<string> 
     throw new Error("Failed to refresh access token");
   }
 
-  // Update stored config with new token
   const newConfig = {
     ...config,
     accessToken: data.access_token,
@@ -55,7 +53,7 @@ async function refreshTokenIfNeeded(config: GoogleDriveConfig): Promise<string> 
   await sql`
     UPDATE integration_configs
     SET config = ${JSON.stringify(newConfig)}::jsonb, updated_at = NOW()
-    WHERE org_id = ${DEFAULT_ORG_ID} AND integration_type = 'google-drive'
+    WHERE org_id = ${tenantId} AND integration_type = 'google-drive'
   `;
 
   return data.access_token;
@@ -64,11 +62,11 @@ async function refreshTokenIfNeeded(config: GoogleDriveConfig): Promise<string> 
 /**
  * Get Google Drive config from database
  */
-async function getGoogleDriveConfig(): Promise<GoogleDriveConfig | null> {
+async function getGoogleDriveConfig(tenantId: string): Promise<GoogleDriveConfig | null> {
   try {
     const result = await sql`
       SELECT config, enabled FROM integration_configs
-      WHERE org_id = ${DEFAULT_ORG_ID} AND integration_type = 'google-drive' AND enabled = true
+      WHERE org_id = ${tenantId} AND integration_type = 'google-drive' AND enabled = true
     `;
 
     if (result.length === 0) {
@@ -86,21 +84,18 @@ async function getGoogleDriveConfig(): Promise<GoogleDriveConfig | null> {
  */
 export async function uploadToGoogleDrive(
   fileName: string,
-  fileContent: string, // Base64 encoded
-  mimeType: string = "application/pdf"
+  fileContent: string,
+  mimeType: string = "application/pdf",
+  tenantId: string
 ): Promise<{ success: boolean; fileId?: string; webViewLink?: string; error?: string }> {
   try {
-    const config = await getGoogleDriveConfig();
+    const config = await getGoogleDriveConfig(tenantId);
     if (!config) {
       return { success: false, error: "Google Drive not connected" };
     }
 
-    const accessToken = await refreshTokenIfNeeded(config);
+    const accessToken = await refreshTokenIfNeeded(config, tenantId);
 
-    // Decode base64 content
-    const binaryContent = Buffer.from(fileContent, "base64");
-
-    // Build multipart upload request
     const boundary = "-------314159265358979323846";
     const metadata = {
       name: fileName,
@@ -156,8 +151,8 @@ export async function uploadToGoogleDrive(
 /**
  * Check if Google Drive auto-save is enabled
  */
-export async function isGoogleDriveAutoSaveEnabled(): Promise<boolean> {
-  const config = await getGoogleDriveConfig();
+export async function isGoogleDriveAutoSaveEnabled(tenantId: string): Promise<boolean> {
+  const config = await getGoogleDriveConfig(tenantId);
   return config?.autoSave === "true";
 }
 
@@ -167,10 +162,11 @@ export async function isGoogleDriveAutoSaveEnabled(): Promise<boolean> {
 export async function saveSignedDocumentToDrive(
   documentTitle: string,
   pdfBase64: string,
-  signerName: string
+  signerName: string,
+  tenantId: string
 ): Promise<void> {
   try {
-    const isEnabled = await isGoogleDriveAutoSaveEnabled();
+    const isEnabled = await isGoogleDriveAutoSaveEnabled(tenantId);
     if (!isEnabled) {
       return;
     }
@@ -178,7 +174,7 @@ export async function saveSignedDocumentToDrive(
     const timestamp = new Date().toISOString().split("T")[0];
     const fileName = `${documentTitle} - Signed by ${signerName} - ${timestamp}.pdf`;
 
-    const result = await uploadToGoogleDrive(fileName, pdfBase64, "application/pdf");
+    const result = await uploadToGoogleDrive(fileName, pdfBase64, "application/pdf", tenantId);
 
     if (result.success) {
       console.log("[Google Drive] Auto-saved document:", fileName);
@@ -193,14 +189,14 @@ export async function saveSignedDocumentToDrive(
 /**
  * List folders in Google Drive (for folder picker)
  */
-export async function listGoogleDriveFolders(): Promise<{ id: string; name: string }[]> {
+export async function listGoogleDriveFolders(tenantId: string): Promise<{ id: string; name: string }[]> {
   try {
-    const config = await getGoogleDriveConfig();
+    const config = await getGoogleDriveConfig(tenantId);
     if (!config) {
       return [];
     }
 
-    const accessToken = await refreshTokenIfNeeded(config);
+    const accessToken = await refreshTokenIfNeeded(config, tenantId);
 
     const response = await fetch(
       "https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)&orderBy=name",

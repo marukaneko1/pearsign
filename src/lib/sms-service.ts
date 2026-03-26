@@ -428,19 +428,11 @@ export async function sendOTP(
       }
     }
 
-    // Demo mode - log code to console (only if no Twilio credentials)
-    console.log(`\n========================================`);
-    console.log(`📱 DEMO MODE - OTP CODE`);
-    console.log(`Phone: ${phoneNumber}`);
-    console.log(`Code: ${code}`);
-    console.log(`Expires: ${expiresAt.toISOString()}`);
-    console.log(`Org: ${orgId || 'unknown'}`);
-    console.log(`========================================\n`);
-
+    // Twilio not configured — reject instead of faking success
+    console.warn('[SMS] Twilio not configured - OTP request rejected');
     return {
-      success: true,
-      message: `Verification code sent to ${maskPhoneNumber(phoneNumber)}. (Demo mode: check server console)`,
-      expiresAt,
+      success: false,
+      message: 'SMS service not configured. Contact your administrator to enable SMS verification.',
     };
   } catch (error) {
     console.error('[SMS] Error sending OTP:', error);

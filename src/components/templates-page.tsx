@@ -73,6 +73,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { TemplateFieldEditor, type TemplateField, type SignerRole } from "./template-field-editor";
 import { PageTour, TEMPLATES_TOUR_STEPS, TourTriggerButton } from "./page-tour";
+import { useAuth } from "@/contexts/auth-context";
 
 // Types matching the backend
 export type TemplateStatus = 'draft' | 'active';
@@ -127,6 +128,7 @@ interface TemplateRecipient {
 
 export function TemplatesPage({ onUseTemplate, onCreateFusionForm }: TemplatesPageProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<TemplateStatus | 'all'>('all');
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -380,7 +382,7 @@ export function TemplatesPage({ onUseTemplate, onCreateFusionForm }: TemplatesPa
           credentials: 'include',
           body: JSON.stringify({
             ...payload,
-            createdBy: 'demo-user',
+            createdBy: user?.id ?? '',
           }),
         });
       }
@@ -458,7 +460,7 @@ export function TemplatesPage({ onUseTemplate, onCreateFusionForm }: TemplatesPa
         credentials: 'include',
         body: JSON.stringify({
           name: `${selectedTemplate.name} Form`,
-          createdBy: 'demo-user',
+          createdBy: user?.id ?? '',
         }),
       });
 

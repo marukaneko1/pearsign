@@ -881,7 +881,7 @@ export const TenantPricingService: IPricingService = {
       this.calculateInvoice(orgId),
     ]);
 
-    // Query both invoice tables (tenant_invoices and invoices from billing-service)
+    // Query both invoice tables (tenant_invoices and billing_invoices from billing-service)
     // and combine results
     const [tenantInvoices, billingInvoices] = await Promise.all([
       sql`
@@ -893,7 +893,7 @@ export const TenantPricingService: IPricingService = {
       `.catch(() => []),
       sql`
         SELECT id, amount, currency, status, period_start, period_end, pdf_url, hosted_invoice_url as hosted_url, created_at, stripe_invoice_id
-        FROM invoices
+        FROM billing_invoices
         WHERE tenant_id = ${orgId}
         ORDER BY created_at DESC
         LIMIT 12

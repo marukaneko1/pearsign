@@ -116,27 +116,36 @@ const plans = [
     name: "Trial",
     price: "$0",
     period: "5 sends",
-    features: ["5 document sends total", "1 GB storage", "Basic templates", "Email support"],
+    features: ["5 document sends total", "3 templates", "1 user", "Email support"],
     icon: Zap,
     color: "from-slate-500 to-slate-600",
   },
   {
-    id: "professional",
-    name: "Professional",
-    price: "$15",
+    id: "starter",
+    name: "Starter",
+    price: "$19",
     period: "/month",
-    features: ["Unlimited documents", "10 GB storage", "All templates", "Priority support", "API access"],
+    features: ["50 documents per month", "10 templates", "3 team members", "Custom branding", "Webhooks", "API access", "Priority email support"],
     icon: Sparkles,
     color: "from-[hsl(var(--pearsign-primary))] to-blue-600",
     popular: true,
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
+    id: "professional",
+    name: "Professional",
     price: "$49",
     period: "/month",
-    features: ["Everything in Pro", "100 GB storage", "Custom branding", "SSO/SAML", "Dedicated support"],
+    features: ["500 documents per month", "100 templates", "15 team members", "Bulk send", "FusionForms", "All integrations", "Chat support"],
     icon: Crown,
+    color: "from-purple-500 to-indigo-600",
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    price: "Custom",
+    period: "",
+    features: ["Unlimited documents", "Unlimited templates", "Unlimited team members", "SSO/SAML", "Custom contract", "Dedicated support", "SLA guarantee"],
+    icon: Building2,
     color: "from-amber-500 to-orange-500",
   },
 ];
@@ -252,7 +261,7 @@ export function StorageBillingSettings() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'checkout',
+          action: 'createCheckout',
           plan: planId,
           billingPeriod,
         }),
@@ -263,10 +272,9 @@ export function StorageBillingSettings() {
         throw new Error(error.error || 'Failed to create checkout session');
       }
 
-      const { data } = await response.json();
+      const data = await response.json();
 
       if (data.checkoutUrl) {
-        // Redirect to Stripe checkout
         window.location.href = data.checkoutUrl;
       }
     } catch (error) {
@@ -286,7 +294,7 @@ export function StorageBillingSettings() {
       const response = await fetch('/api/billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'portal' }),
+        body: JSON.stringify({ action: 'createPortal' }),
       });
 
       if (!response.ok) {
@@ -294,7 +302,7 @@ export function StorageBillingSettings() {
         throw new Error(error.error || 'Failed to open billing portal');
       }
 
-      const { data } = await response.json();
+      const data = await response.json();
 
       if (data.portalUrl) {
         window.location.href = data.portalUrl;
@@ -584,22 +592,22 @@ export function StorageBillingSettings() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {plans.map((plan) => {
               const isCurrentPlan = plan.id.toLowerCase() === billingData?.plan?.toLowerCase();
               const isUpgrading = upgradingPlan === plan.id;
               const PlanIcon = plan.icon;
               const isFree = plan.id === 'free';
+              const isEnterprise = plan.id === 'enterprise';
               const planIndex = plans.findIndex(p => p.id === plan.id);
               const currentPlanIndex = plans.findIndex(p => p.id.toLowerCase() === billingData?.plan?.toLowerCase());
               const isDowngrade = planIndex < currentPlanIndex;
 
-              // Calculate price based on billing period
               const priceNum = parseInt(plan.price.replace('$', '') || '0');
               const displayPrice = billingPeriod === 'yearly' && priceNum > 0
                 ? `$${Math.round(priceNum * 0.8)}`
                 : plan.price;
-              const displayPeriod = billingPeriod === 'yearly' ? '/mo (billed yearly)' : plan.period;
+              const displayPeriod = isEnterprise ? '' : (billingPeriod === 'yearly' && priceNum > 0 ? '/mo (billed yearly)' : plan.period);
 
               return (
                 <div
@@ -636,7 +644,13 @@ export function StorageBillingSettings() {
                     size="sm"
                     className={`w-full ${plan.popular && !isCurrentPlan ? 'bg-[hsl(var(--pearsign-primary))] hover:bg-[hsl(var(--pearsign-primary))]/90' : ''}`}
                     disabled={isCurrentPlan || isFree || isUpgrading}
-                    onClick={() => !isCurrentPlan && !isFree && handleUpgrade(plan.id)}
+                    onClick={() => {
+                      if (isEnterprise) {
+                        window.location.href = 'mailto:sales@pearsign.com?subject=Enterprise%20Plan%20Inquiry';
+                      } else if (!isCurrentPlan && !isFree) {
+                        handleUpgrade(plan.id);
+                      }
+                    }}
                   >
                     {isUpgrading ? (
                       <>
@@ -647,6 +661,8 @@ export function StorageBillingSettings() {
                       "Current Plan"
                     ) : isFree ? (
                       "Free Forever"
+                    ) : isEnterprise ? (
+                      "Contact Sales"
                     ) : isDowngrade ? (
                       "Downgrade"
                     ) : (

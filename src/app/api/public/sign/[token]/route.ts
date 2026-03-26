@@ -23,6 +23,24 @@ interface RouteParams {
   params: Promise<{ token: string }>;
 }
 
+// --- Rate limiting for public endpoints ---
+
+const signRateLimiter = new Map<string, { count: number; resetAt: number }>();
+
+function checkSigningRateLimit(ip: string, maxRequests: number = 10): boolean {
+  const now = Date.now();
+  const window = 60_000; // 1 minute
+
+  const entry = signRateLimiter.get(ip);
+  if (!entry || now > entry.resetAt) {
+    signRateLimiter.set(ip, { count: 1, resetAt: now + window });
+    return true;
+  }
+  if (entry.count >= maxRequests) return false;
+  entry.count++;
+  return true;
+}
+
 // Parse the signing token to extract envelope ID
 function parseSigningToken(token: string): { envelopeId: string; tokenPart: string } | null {
   // Token format: envelopeId_timestamp_randomPart
@@ -99,6 +117,11 @@ const FIELD_LABELS: Record<string, string> = {
 // Get signing data
 export async function GET(request: NextRequest, context: RouteParams) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (!checkSigningRateLimit(ip, 30)) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const { token } = await context.params;
 
     // Parse the token
@@ -411,17 +434,6 @@ export async function PUT(request: NextRequest, context: RouteParams) {
                 LIMIT 1
               `;
 
-              // If not found, try with default org 'org-1'
-              if (profileResult.length === 0) {
-                console.log("[Viewed] No profile found for org:", session.org_id, "- trying default org-1");
-                profileResult = await sql`
-                  SELECT first_name, last_name, email
-                  FROM user_profiles
-                  WHERE organization_id = 'org-1'
-                  LIMIT 1
-                `;
-              }
-
               if (profileResult.length > 0 && profileResult[0].email) {
                 senderName = `${profileResult[0].first_name || ''} ${profileResult[0].last_name || ''}`.trim() || 'PearSign User';
                 senderEmail = profileResult[0].email;
@@ -509,6 +521,11 @@ export async function PUT(request: NextRequest, context: RouteParams) {
 // Complete signing
 export async function POST(request: NextRequest, context: RouteParams) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (!checkSigningRateLimit(ip)) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const { token } = await context.params;
     const body = await request.json();
 
@@ -713,7 +730,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             ipAddress,
             userAgent,
             documentHash,
-            organizationId: tenantId || 'org-1',
+            organizationId: tenantId,
           });
 
           console.log('[Signing Complete] Created', signatureIds.size, 'signature records with PearSign IDs');
@@ -747,7 +764,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           includeAuditOnDocument,
           // Enable PKI digital signature for Adobe Acrobat recognition
           // The PDF is FINAL after this - no further modifications allowed
-          orgId: tenantId || 'org-1',
+          orgId: tenantId,
           applyDigitalSignature: true,
           signatureReason: `Document "${doc.title}" electronically signed by ${signerName} (${signerEmail})`,
           // Pass PearSign Signature IDs for visual display under each signature
@@ -781,7 +798,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             documentId: tokenData.envelopeId,
             documentTitle: doc.title,
             includeAuditOnDocument,
-            orgId: tenantId || 'org-1',
+            orgId: tenantId,
             applyDigitalSignature: false, // Fallback without PKI
             signatureReason: `Document "${doc.title}" electronically signed by ${signerName} (${signerEmail})`,
             signatureIds,
@@ -808,7 +825,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         }
         const pdfBuffer = Buffer.from(b64, 'base64');
         const storageResult = await TenantObjectStorage.uploadBuffer(
-          tenantId || 'org-1',
+          tenantId,
           `${tokenData.envelopeId}_signed.pdf`,
           pdfBuffer,
           'application/pdf',
@@ -828,7 +845,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           org_id, envelope_id, token, recipient_name, recipient_email,
           status, field_values, signature_data, signed_pdf_data, signed_pdf_object_path, ip_address, user_agent, signed_at
         ) VALUES (
-          ${tenantId || 'org-1'},
+          ${tenantId},
           ${tokenData.envelopeId},
           ${token},
           ${signerName},
@@ -861,7 +878,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
     // Log the signing event
     await logEnvelopeEvent('envelope.signed', {
-      orgId: tenantId || 'org-1',
+      orgId: tenantId,
       envelopeId: tokenData.envelopeId,
       envelopeTitle: documentTitle,
       actorName: signerName,
@@ -876,7 +893,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
     // Log the completion event
     await logEnvelopeEvent('envelope.completed', {
-      orgId: tenantId || 'org-1',
+      orgId: tenantId,
       envelopeId: tokenData.envelopeId,
       envelopeTitle: documentTitle,
       actorName: 'System',
@@ -917,7 +934,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         // Mark document as completed and set retention expiry based on tenant compliance settings
         try {
           const retentionResult = await markDocumentCompleted(
-            tenantId || 'org-1',
+            tenantId,
             tokenData.envelopeId,
             signerName
           );
@@ -1025,14 +1042,14 @@ export async function POST(request: NextRequest, context: RouteParams) {
       // Auto-save to cloud storage if enabled
       try {
         // Save to Google Drive
-        await saveSignedDocumentToDrive(documentTitle, signedPdfBase64, signerName);
+        await saveSignedDocumentToDrive(documentTitle, signedPdfBase64, signerName, tenantId);
       } catch (driveErr) {
         console.error('[Signing Complete] Error saving to Google Drive:', driveErr);
       }
 
       try {
         // Save to Dropbox
-        await saveSignedDocumentToDropbox(documentTitle, signedPdfBase64, signerName);
+        await saveSignedDocumentToDropbox(documentTitle, signedPdfBase64, signerName, tenantId);
       } catch (dropboxErr) {
         console.error('[Signing Complete] Error saving to Dropbox:', dropboxErr);
       }
@@ -1040,13 +1057,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
       // Sync to Salesforce
       try {
         // Sync signer as contact
-        await syncSignerToSalesforce({
+        await syncSignerToSalesforce(tenantId, {
           email: signerEmail,
           name: signerName,
         });
 
-        // Log signing task
-        await logSigningTask({
+        await logSigningTask(tenantId, {
           contactEmail: signerEmail,
           documentTitle,
           signedAt,

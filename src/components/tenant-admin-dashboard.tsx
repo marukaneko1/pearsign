@@ -59,6 +59,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface TenantData {
   id: string;
@@ -135,6 +136,40 @@ export function TenantAdminDashboard() {
   const [editNameDialogOpen, setEditNameDialogOpen] = useState(false);
   const [changePlanDialogOpen, setChangePlanDialogOpen] = useState(false);
   const [copiedAccountId, setCopiedAccountId] = useState(false);
+  const [billingData, setBillingData] = useState<any>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const response = await fetch('/api/analytics/dashboard', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setAnalyticsData(data);
+      }
+    } catch (e) {
+      console.error('Failed to load analytics:', e);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
+  const loadBillingData = useCallback(async () => {
+    setBillingLoading(true);
+    try {
+      const response = await fetch('/api/billing', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setBillingData(data);
+      }
+    } catch (e) {
+      console.error('Failed to load billing data:', e);
+    } finally {
+      setBillingLoading(false);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -164,10 +199,12 @@ export function TenantAdminDashboard() {
   useEffect(() => {
     if (!isDemo && currentTenant) {
       loadData();
+      loadBillingData();
+      loadAnalytics();
     } else {
       setIsLoading(false);
     }
-  }, [isDemo, currentTenant, loadData]);
+  }, [isDemo, currentTenant, loadData, loadBillingData, loadAnalytics]);
 
   if (isDemo) {
     return (
@@ -396,21 +433,118 @@ export function TenantAdminDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="p-4 bg-muted/50 rounded-lg text-center">
-                  <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    No payment method on file
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-2">
-                    Add Payment Method
-                  </Button>
-                </div>
+                {billingLoading ? (
+                  <div className="p-4 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : billingData?.paymentMethods?.length > 0 ? (
+                  <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                    {billingData.paymentMethods.map((pm: any, idx: number) => (
+                      <div key={pm.id || idx} className="flex items-center gap-3">
+                        <CreditCard className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium capitalize">
+                            {pm.brand || pm.type || 'Card'} •••• {pm.last4 || '****'}
+                          </p>
+                          {pm.expMonth && pm.expYear && (
+                            <p className="text-xs text-muted-foreground">
+                              Expires {pm.expMonth}/{pm.expYear}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/billing', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ action: 'createPortal' }),
+                          });
+                          const data = await response.json();
+                          if (data.portalUrl) {
+                            window.location.href = data.portalUrl;
+                          }
+                        } catch (e) {
+                          toast({ title: 'Error', description: 'Failed to open billing portal', variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      Manage Payment Methods
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-muted/50 rounded-lg text-center">
+                    <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No payment method on file
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/billing', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ action: 'createPortal' }),
+                          });
+                          const data = await response.json();
+                          if (data.portalUrl) {
+                            window.location.href = data.portalUrl;
+                          }
+                        } catch (e) {
+                          toast({ title: 'Error', description: 'Failed to open billing portal', variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      Add Payment Method
+                    </Button>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">Recent Invoices</h4>
-                  <p className="text-sm text-muted-foreground">
-                    No invoices yet
-                  </p>
+                  {billingLoading ? (
+                    <div className="flex items-center justify-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : billingData?.recentInvoices?.length > 0 ? (
+                    <div className="space-y-2">
+                      {billingData.recentInvoices.map((inv: any, idx: number) => (
+                        <div key={inv.id || idx} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/30">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span>{inv.date ? new Date(inv.date).toLocaleDateString() : 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium">
+                              {typeof inv.amount === 'number' ? `$${(inv.amount / 100).toFixed(2)}` : inv.amount || '—'}
+                            </span>
+                            <Badge variant="secondary" className={inv.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''}>
+                              {inv.status || 'unknown'}
+                            </Badge>
+                            {inv.url && (
+                              <a href={inv.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs">
+                                View
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No invoices yet
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -418,22 +552,100 @@ export function TenantAdminDashboard() {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage Analytics</CardTitle>
-              <CardDescription>
-                Track your organization&apos;s document signing activity
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="h-64 flex items-center justify-center">
-              <div className="text-center">
-                <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  Analytics charts coming soon
-                </p>
+          {analyticsLoading ? (
+            <Card>
+              <CardContent className="h-64 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : analyticsData ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Total Documents</p>
+                    <p className="text-2xl font-bold">{analyticsData.stats?.totalDocuments || 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">This Month</p>
+                    <p className="text-2xl font-bold">{analyticsData.stats?.thisMonthDocuments || 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Completion Rate</p>
+                    <p className="text-2xl font-bold">{analyticsData.stats?.completionRate || 0}%</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Avg. Completion Time</p>
+                    <p className="text-2xl font-bold">{analyticsData.stats?.avgCompletionTime || '—'}h</p>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Monthly Document Activity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analyticsData.charts?.monthlyTrend || []}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="month" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip />
+                        <Bar dataKey="sent" name="Sent" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="completed" name="Completed" fill="hsl(var(--chart-2, 142 76% 36%))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Document Status Breakdown</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={analyticsData.charts?.statusBreakdown || []}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          label={({ name, value }: { name: string; value: number }) => `${name}: ${value}`}
+                        >
+                          {(analyticsData.charts?.statusBreakdown || []).map((_: any, i: number) => (
+                            <Cell key={i} fill={['hsl(var(--chart-1, 220 70% 50%))', 'hsl(var(--chart-2, 142 76% 36%))', 'hsl(var(--chart-3, 30 80% 55%))'][i % 3]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="h-64 flex items-center justify-center">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No analytics data available yet</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -777,6 +989,24 @@ function ChangePlanDialog({ open, onOpenChange, currentPlan, onSaved }: {
     if (selectedPlan === currentPlan) return;
     setIsSaving(true);
     try {
+      if (selectedPlan !== 'free') {
+        const response = await fetch('/api/billing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ action: 'createCheckout', plan: selectedPlan }),
+        });
+        const data = await response.json();
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+          return;
+        }
+        if (data.error) {
+          toast({ title: 'Error', description: data.error, variant: 'destructive' });
+          return;
+        }
+      }
+
       const response = await fetch("/api/tenant/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

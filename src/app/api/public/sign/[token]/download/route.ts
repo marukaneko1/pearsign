@@ -117,7 +117,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
       documentTitle: doc.title,
       includeAuditOnDocument,
       // Enable PKI digital signature for Adobe Acrobat recognition
-      orgId: tenantId || 'org-1',
+      orgId: tenantId,
       applyDigitalSignature: true,
       signatureReason: `Document "${doc.title}" electronically signed by ${session.recipient_name}`,
     });

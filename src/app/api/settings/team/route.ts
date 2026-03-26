@@ -58,7 +58,7 @@ export const GET = withTenant(async (request: NextRequest, { tenantId }: TenantA
  * Invite a new team member to the current tenant
  */
 export const POST = withTenant(
-  async (request: NextRequest, { tenantId }: TenantApiContext) => {
+  async (request: NextRequest, { context, tenantId }: TenantApiContext) => {
     console.log('[Team Invite] POST /api/settings/team - Start, tenant:', tenantId);
     try {
       const body = await request.json();
@@ -67,6 +67,16 @@ export const POST = withTenant(
 
       if (!email || !role) {
         return NextResponse.json({ error: 'Email and role are required' }, { status: 400 });
+      }
+
+      // Check team member limit
+      const memberCount = await sql`SELECT COUNT(*) as count FROM tenant_users WHERE tenant_id = ${tenantId} AND status = 'active'`;
+      const teamLimit = context.features?.maxTeamMembers || 3;
+      if (teamLimit !== -1 && parseInt(memberCount[0]?.count || '0') >= teamLimit) {
+        return NextResponse.json(
+          { error: 'Team member limit reached', message: `Your plan allows ${teamLimit} team members. Please upgrade.`, upgradeRequired: true },
+          { status: 403 }
+        );
       }
 
       // Check if email already exists in this tenant

@@ -10,6 +10,7 @@ import { TemplatesService, type TemplateStatus } from '@/lib/templates';
 import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
 import { TemplateVersioningService } from '@/lib/template-versioning';
 import { checkFeature } from '@/lib/tenant';
+import { sql } from '@/lib/db';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -114,21 +115,15 @@ export const POST = withTenant(
         );
       }
 
-      // Check if at template limit
-      const maxTemplates = context.features.maxTemplates;
-      if (maxTemplates !== -1) {
-        const currentCount = await TemplatesService.getTemplates(tenantId, { limit: 1 });
-        if (currentCount.total >= maxTemplates) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'TemplateLimit',
-              message: `You've reached your template limit (${maxTemplates}). Please upgrade your plan.`,
-              upgradeRequired: true,
-            },
-            { status: 403 }
-          );
-        }
+      // Check template limit
+      const templateCount = await sql`SELECT COUNT(*) as count FROM templates WHERE org_id = ${tenantId}`;
+      const features = context.features || {};
+      const templateLimit = features.maxTemplates || 10;
+      if (templateLimit !== -1 && parseInt(templateCount[0]?.count || '0') >= templateLimit) {
+        return NextResponse.json(
+          { error: 'Template limit reached', message: `Your plan allows ${templateLimit} templates. Please upgrade to create more.`, upgradeRequired: true },
+          { status: 403 }
+        );
       }
 
       // Create the template

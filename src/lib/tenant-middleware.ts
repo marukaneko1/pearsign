@@ -109,20 +109,15 @@ export function withTenant<T = unknown>(
           // Session context resolved for tenant
         }
       } catch (sessionError) {
-        // Session not available - fall back to legacy context
-        console.log('[TenantMiddleware] No session available, falling back to legacy context');
+        // Session not available - no fallback, require auth
+        console.log('[TenantMiddleware] No session available, authentication required');
       }
 
-      // 2. Fall back to legacy context only if no session
-      if (!context) {
-        context = options.requireAuth !== false
-          ? await requireTenantContext(request)
-          : await getTenantContext(request);
-      }
-
+      // Legacy X-Tenant-ID header path removed for security - all routes require session auth
+      // No session available - authentication required
       if (!context) {
         return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
+          { error: 'Unauthorized', message: 'Authentication required. Please log in.' },
           { status: 401 }
         );
       }

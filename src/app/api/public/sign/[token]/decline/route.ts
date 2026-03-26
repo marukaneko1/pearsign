@@ -60,7 +60,13 @@ export async function POST(request: NextRequest, context: RouteParams) {
     const session = sessions[0];
 
     // Extract tenant ID from session
-    const tenantId = session.org_id || 'org-1';
+    const tenantId = session.org_id;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Missing tenant context' },
+        { status: 400 }
+      );
+    }
 
     if (session.status === "completed") {
       return NextResponse.json(
