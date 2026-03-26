@@ -214,12 +214,15 @@ export function SignerGlobe() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Globe dimensions — measured from container, with fallback
+  // Globe dimensions — measured from container on every resize
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const update = () =>
-      setGlobeSize({ w: el.clientWidth || el.offsetWidth, h: el.clientHeight || el.offsetHeight });
+    const update = () => {
+      const w = el.getBoundingClientRect().width || el.offsetWidth || 600;
+      const h = el.getBoundingClientRect().height || el.offsetHeight || 420;
+      setGlobeSize({ w, h });
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -404,9 +407,9 @@ export function SignerGlobe() {
           </div>
         )}
 
-        {/* ── 3-D globe ── always render when in globe mode; use fallback size */}
+        {/* ── 3-D globe ── centered absolutely inside the container */}
         {viewMode === "globe" && (
-          <>
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
             {hasData ? (
               <GlobeGL
                 ref={globeRef}
@@ -441,12 +444,12 @@ export function SignerGlobe() {
                 enablePointerInteraction
               />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+              <div className="flex flex-col items-center justify-center h-full w-full gap-3 text-muted-foreground">
                 <GlobeIcon className="h-10 w-10 opacity-30" />
                 <p className="text-sm">No signing data yet</p>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* Demo banner */}
