@@ -127,12 +127,12 @@ export const POST = withTenant(
         // Parse CA bundle if provided (for AATL/eIDAS certificates)
         let finalChain: string[] = certificateChain;
         if (caBundle && typeof caBundle === 'string') {
-          console.log('[Certificates API] Parsing CA bundle for AATL/eIDAS chain...');
+          if (process.env.NODE_ENV !== 'production') console.log('[Certificates API] Parsing CA bundle for AATL/eIDAS chain...');
           const parsedChain = splitPemBundle(caBundle);
           if (parsedChain.length > 0) {
             // Merge: user-provided chain first, then parsed bundle
             finalChain = [...certificateChain, ...parsedChain];
-            console.log(`[Certificates API] CA bundle added ${parsedChain.length} certificate(s) to chain`);
+            if (process.env.NODE_ENV !== 'production') console.log(`[Certificates API] CA bundle added ${parsedChain.length} certificate(s) to chain`);
           }
         }
 

@@ -172,7 +172,7 @@ export const POST = withTenant(
       // Clear the email service cache so new config is used immediately
       clearSendGridCache(tenantId);
 
-      console.log(`[SendGrid] Settings saved for tenant: ${tenantId}, enabled: ${enabled}, fallback: ${platformFallbackEnabled}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[SendGrid] Settings saved for tenant: ${tenantId}, enabled: ${enabled}, fallback: ${platformFallbackEnabled}`);
 
       return NextResponse.json({ success: true });
     } catch (error) {

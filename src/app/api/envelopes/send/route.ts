@@ -110,7 +110,7 @@ export const POST = withTenant(
     try {
       const body: SendEnvelopeRequest = await request.json();
 
-      console.log("[Envelope Send] Request received:", {
+      if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] Request received:", {
         title: body.title,
         recipientCount: body.recipients?.length,
         tenantId,
@@ -121,7 +121,7 @@ export const POST = withTenant(
       // Check and increment envelope usage BEFORE sending
       const usageCheck = await checkAndIncrementEnvelopeUsage(tenantId);
       if (!usageCheck.allowed) {
-        console.log("[Envelope Send] Limit exceeded for tenant:", tenantId);
+        if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] Limit exceeded for tenant:", tenantId);
         return NextResponse.json(
           {
             success: false,
@@ -144,7 +144,7 @@ export const POST = withTenant(
       // Count signers (excluding CC recipients)
       const signerCount = body.recipients.filter(r => r.role === 'signer').length;
       const twoFACount = body.recipients.filter(r => r.role === 'signer' && r.require2FA).length;
-      console.log("[Envelope Send] Signers count:", signerCount, "with 2FA:", twoFACount);
+      if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] Signers count:", signerCount, "with 2FA:", twoFACount);
 
       // Log the envelope creation audit event
       await logEnvelopeEvent('envelope.created', {
@@ -174,7 +174,7 @@ export const POST = withTenant(
       await ensureDocumentsTable();
 
       if (body.pdfBase64) {
-        console.log("[Envelope Send] Storing PDF document, size:", body.pdfBase64.length);
+        if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] Storing PDF document, size:", body.pdfBase64.length);
 
         let pdfObjectPath: string | null = null;
         try {
@@ -191,7 +191,7 @@ export const POST = withTenant(
             'documents'
           );
           pdfObjectPath = result.objectPath;
-          console.log("[Envelope Send] PDF stored in Object Storage:", pdfObjectPath);
+          if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] PDF stored in Object Storage:", pdfObjectPath);
         } catch (storageErr) {
           console.warn("[Envelope Send] Object Storage failed, falling back to DB:", storageErr);
         }
@@ -233,7 +233,7 @@ export const POST = withTenant(
         baseUrl = `${protocol}://${forwardedHost || host}`;
       }
 
-      console.log("[Envelope Send] URL detection - baseUrl:", baseUrl);
+      if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] URL detection - baseUrl:", baseUrl);
 
       const emailResults: Array<{ email: string; success: boolean; error?: string }> = [];
 
@@ -244,7 +244,7 @@ export const POST = withTenant(
         const signingToken = `${envelopeId}_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
         const signingUrl = `${baseUrl}/sign/${signingToken}`;
 
-        console.log("[Envelope Send] Sending to:", recipient.email, "2FA:", recipient.require2FA);
+        if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] Sending to:", recipient.email, "2FA:", recipient.require2FA);
 
         // Calculate expiration timestamp
         const expiresAt = body.expirationDays
@@ -315,7 +315,7 @@ export const POST = withTenant(
         });
       }
 
-      console.log("[Envelope Send] All email results:", emailResults);
+      if (process.env.NODE_ENV !== 'production') console.log("[Envelope Send] All email results:", emailResults);
 
       // Create the "envelope sent" notification
       const notification = await onEnvelopeSent({

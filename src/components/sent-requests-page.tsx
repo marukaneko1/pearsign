@@ -232,7 +232,6 @@ export function SentRequestsPage({ envelopes, loading, onRefresh, onVoidDocument
   // This enables immediate UI updates when signer declines, signs, views, etc.
   useEffect(() => {
     const handleEnvelopeStatusChange = () => {
-      console.log("[SentRequestsPage] Envelope status changed, triggering refresh");
       silentRefresh();
     };
 
@@ -371,11 +370,42 @@ export function SentRequestsPage({ envelopes, loading, onRefresh, onVoidDocument
     if (selectedForBulkVoid.size === 0) return;
     setIsVoiding(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setVoidedIds(prev => new Set([...prev, ...selectedForBulkVoid]));
+      const ids = Array.from(selectedForBulkVoid);
+      const results = await Promise.allSettled(
+        ids.map(id =>
+          fetch(`/api/envelopes/${id}/void`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: 'Bulk void' }),
+          }).then(async res => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || `Failed to void ${id}`);
+            }
+            return id;
+          })
+        )
+      );
+
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map(r => r.value);
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      if (succeeded.length > 0) {
+        setVoidedIds(prev => new Set([...prev, ...succeeded]));
+      }
+
+      if (failed > 0 && succeeded.length === 0) {
+        throw new Error(`Failed to void ${failed} document(s)`);
+      }
+
       toast({
         title: "Documents voided",
-        description: `${selectedForBulkVoid.size} document(s) have been voided.`,
+        description: failed > 0
+          ? `${succeeded.length} voided, ${failed} failed.`
+          : `${succeeded.length} document(s) have been voided.`,
+        variant: failed > 0 ? "destructive" : "default",
       });
       setShowBulkVoidDialog(false);
       setSelectedForBulkVoid(new Set());

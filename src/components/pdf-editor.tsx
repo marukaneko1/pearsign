@@ -19,6 +19,11 @@ import {
   X,
 } from "lucide-react";
 import { PDFDocument } from 'pdf-lib';
+import * as pdfjsLib from 'pdfjs-dist';
+
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+}
 
 interface PDFEditorProps {
   file: File;
@@ -52,30 +57,26 @@ export function PDFEditor({ file, onBack, onSendForSignature }: PDFEditorProps) 
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
 
-      // Extract text from PDF
+      // Extract text from PDF using pdfjs-dist
       const arrayBuffer = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pdfData = new Uint8Array(arrayBuffer);
+      const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-      // Simple text extraction (basic approach)
-      // For production, you'd want a more robust solution
-      const pages = pdfDoc.getPages();
       let allText = "";
-
-      // Get form fields if any
-      const form = pdfDoc.getForm();
-      const fields = form.getFields();
-
-      if (fields.length > 0) {
-        fields.forEach(field => {
-          const name = field.getName();
-          allText += `${name}\n`;
-        });
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item) => ('str' in item ? item.str : ''))
+          .join(' ');
+        if (pageText.trim()) {
+          allText += pageText + "\n\n";
+        }
       }
 
-      // Placeholder: In a real implementation, you'd use pdf.js or a backend service
-      // to extract actual text content from the PDF
-      setExtractedText("PDF text extraction requires a backend service for full functionality.\n\nFor demo purposes, you can edit this text and save changes.\n\nIn production, this would show the actual PDF content extracted from: " + file.name);
-      setEditedText("PDF text extraction requires a backend service for full functionality.\n\nFor demo purposes, you can edit this text and save changes.\n\nIn production, this would show the actual PDF content extracted from: " + file.name);
+      const extracted = allText.trim() || `[No extractable text found in ${file.name}]`;
+      setExtractedText(extracted);
+      setEditedText(extracted);
 
       setIsLoading(false);
     } catch (error) {

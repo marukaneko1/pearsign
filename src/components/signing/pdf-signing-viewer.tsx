@@ -14,6 +14,7 @@ import {
   Type,
   FileText,
   AlertCircle,
+  Move,
 } from "lucide-react";
 import { usePinchZoom, pinchZoomStyles } from "@/hooks/use-pinch-zoom";
 
@@ -41,6 +42,8 @@ interface PDFSigningViewerProps {
   onPageChange?: (page: number) => void;
   className?: string;
   readOnly?: boolean;
+  allowFieldAdjust?: boolean;
+  onFieldAdjust?: (fieldId: string, x: number, y: number, width: number, height: number) => void;
 }
 
 export function PDFSigningViewer({
@@ -53,6 +56,8 @@ export function PDFSigningViewer({
   onPageChange,
   className = "",
   readOnly = false,
+  allowFieldAdjust = false,
+  onFieldAdjust,
 }: PDFSigningViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,6 +69,20 @@ export function PDFSigningViewer({
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const renderTaskRef = useRef<unknown>(null);
+
+  // Drag/resize state for field adjustment
+  const [localAdjustments, setLocalAdjustments] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
+  const dragRef = useRef<{
+    fieldId: string;
+    type: 'move' | 'resize';
+    startMouseX: number;
+    startMouseY: number;
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+  } | null>(null);
+  const currentAdjustRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -92,7 +111,7 @@ export function PDFSigningViewer({
         setError(null);
 
         const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         let pdfSource: string | { data: Uint8Array };
 
@@ -225,6 +244,84 @@ export function PDFSigningViewer({
     currentScale: scale,
     onZoomChange: setScale,
   });
+
+  // Get effective field position (local adjustments override the original)
+  const getEffectiveField = useCallback((field: SignatureField) => {
+    const adj = localAdjustments[field.id];
+    return adj ? { ...field, ...adj } : field;
+  }, [localAdjustments]);
+
+  // Start dragging or resizing a field
+  const handleFieldDragStart = useCallback((e: React.MouseEvent, field: SignatureField, type: 'move' | 'resize') => {
+    if (!allowFieldAdjust || readOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const eff = getEffectiveField(field);
+    dragRef.current = {
+      fieldId: field.id,
+      type,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startX: eff.x,
+      startY: eff.y,
+      startW: eff.width,
+      startH: eff.height,
+    };
+    currentAdjustRef.current = null;
+  }, [allowFieldAdjust, readOnly, getEffectiveField]);
+
+  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const canvasW = parseFloat(canvas.style.width) || canvas.offsetWidth || 1;
+    const canvasH = parseFloat(canvas.style.height) || canvas.offsetHeight || 1;
+
+    const dx = ((e.clientX - dragRef.current.startMouseX) / canvasW) * 100;
+    const dy = ((e.clientY - dragRef.current.startMouseY) / canvasH) * 100;
+    const { fieldId, type, startX, startY, startW, startH } = dragRef.current;
+
+    let newAdj: { x: number; y: number; width: number; height: number };
+    if (type === 'move') {
+      newAdj = {
+        x: Math.max(0, Math.min(100 - startW, startX + dx)),
+        y: Math.max(0, Math.min(100 - startH, startY + dy)),
+        width: startW,
+        height: startH,
+      };
+    } else {
+      newAdj = {
+        x: startX,
+        y: startY,
+        width: Math.max(4, Math.min(100 - startX, startW + dx)),
+        height: Math.max(2, Math.min(100 - startY, startH + dy)),
+      };
+    }
+
+    currentAdjustRef.current = newAdj;
+    setLocalAdjustments(prev => ({ ...prev, [fieldId]: newAdj }));
+  }, []);
+
+  const handleGlobalMouseUp = useCallback(() => {
+    if (!dragRef.current) return;
+    const fieldId = dragRef.current.fieldId;
+    if (currentAdjustRef.current) {
+      const { x, y, width, height } = currentAdjustRef.current;
+      onFieldAdjust?.(fieldId, x, y, width, height);
+    }
+    dragRef.current = null;
+    currentAdjustRef.current = null;
+  }, [onFieldAdjust]);
+
+  useEffect(() => {
+    if (allowFieldAdjust) {
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleGlobalMouseMove);
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [allowFieldAdjust, handleGlobalMouseMove, handleGlobalMouseUp]);
 
   const getFieldIcon = (type: string) => {
     switch (type) {
@@ -463,25 +560,27 @@ export function PDFSigningViewer({
 
           {/* Signature Field Overlays */}
           {currentPageFields.map((field) => {
+            const eff = getEffectiveField(field);
             const isFilled = !!(field.value || (field.type === "signature" && signatureData));
+            const canAdjust = allowFieldAdjust && !readOnly && !isFilled;
             return (
-              <button
+              <div
                 key={field.id}
-                type="button"
-                onClick={() => !readOnly && onFieldClick?.(field)}
-                disabled={readOnly}
                 data-testid={`pdf-field-${field.type}-${field.id}`}
-                className={`absolute transition-all duration-200 rounded-md border-2 overflow-hidden box-border ${
+                className={`absolute rounded-md border-2 overflow-visible box-border ${
                   isFilled
                     ? "border-emerald-400 bg-emerald-50/90 dark:bg-emerald-900/40 shadow-sm"
                     : `border-dashed ${getFieldColors(field.type, false)}`
-                } ${readOnly ? "cursor-default" : "cursor-pointer"}`}
+                } ${canAdjust ? "cursor-move select-none" : readOnly ? "cursor-default" : "cursor-pointer"}`}
                 style={{
-                  left: `${field.x}%`,
-                  top: `${field.y}%`,
-                  width: `${field.width}%`,
-                  height: `${field.height}%`,
+                  left: `${eff.x}%`,
+                  top: `${eff.y}%`,
+                  width: `${eff.width}%`,
+                  height: `${eff.height}%`,
+                  transition: dragRef.current?.fieldId === field.id ? 'none' : 'left 0.05s, top 0.05s, width 0.05s, height 0.05s',
                 }}
+                onMouseDown={canAdjust ? (e) => handleFieldDragStart(e, field, 'move') : undefined}
+                onClick={!canAdjust ? () => !readOnly && onFieldClick?.(field) : undefined}
               >
                 {isFilled ? (
                   <div className="w-full h-full flex items-center justify-center p-1 relative">
@@ -497,14 +596,36 @@ export function PDFSigningViewer({
                     )}
                   </div>
                 ) : (
-                  <div className={`w-full h-full flex flex-col items-center justify-center gap-0.5 p-1 ${getFieldTextColor(field.type)}`}>
+                  <div
+                    className={`w-full h-full flex flex-col items-center justify-center gap-0.5 p-1 ${getFieldTextColor(field.type)}`}
+                    onClick={canAdjust ? () => onFieldClick?.(field) : undefined}
+                  >
+                    {canAdjust && (
+                      <Move className="h-2.5 w-2.5 opacity-50 absolute top-0.5 left-0.5" />
+                    )}
                     {getFieldIcon(field.type)}
                     <span className="text-[8px] md:text-xs font-semibold mt-0.5 truncate max-w-full">
                       {field.label}
                     </span>
                   </div>
                 )}
-              </button>
+
+                {/* Resize handle */}
+                {canAdjust && (
+                  <div
+                    className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-10 flex items-center justify-center"
+                    style={{ transform: 'translate(30%, 30%)' }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      handleFieldDragStart(e, field, 'resize');
+                    }}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                      <path d="M1 7L7 1M4 7L7 4M7 7V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={getFieldTextColor(field.type)} />
+                    </svg>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

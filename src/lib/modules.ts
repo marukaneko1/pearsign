@@ -61,17 +61,38 @@ function mapModuleFromDb(row: Record<string, unknown>): OrganizationModule {
   };
 }
 
+async function ensureModulesTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS organization_modules (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id VARCHAR(255) NOT NULL,
+      module_id VARCHAR(100) NOT NULL,
+      enabled BOOLEAN DEFAULT true,
+      settings JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(organization_id, module_id)
+    )
+  `;
+}
+
 export const ModulesService = {
   async getModules(orgId: string): Promise<OrganizationModule[]> {
     if (!orgId) {
       throw new Error('orgId is required');
     }
 
-    const modules = await sql`
-      SELECT id, organization_id, module_id, enabled, settings, created_at, updated_at
-      FROM organization_modules WHERE organization_id = ${orgId} ORDER BY module_id
-    `;
-    return modules.map(mapModuleFromDb);
+    try {
+      const modules = await sql`
+        SELECT id, organization_id, module_id, enabled, settings, created_at, updated_at
+        FROM organization_modules WHERE organization_id = ${orgId} ORDER BY module_id
+      `;
+      return modules.map(mapModuleFromDb);
+    } catch {
+      // Table may not exist yet — create it and return empty (AVAILABLE_MODULES handles defaults)
+      await ensureModulesTable().catch(() => {});
+      return [];
+    }
   },
 
   async isModuleEnabled(moduleId: ModuleId, orgId: string): Promise<boolean> {

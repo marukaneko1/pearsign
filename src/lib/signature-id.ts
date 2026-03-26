@@ -125,7 +125,7 @@ export async function ensureSignatureRecordsTable(): Promise<void> {
     ON signature_records(document_hash)
   `;
 
-  console.log("[SignatureID] signature_records table initialized");
+  if (process.env.NODE_ENV !== 'production') console.log("[SignatureID] signature_records table initialized");
 }
 
 /**

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Initialize admin tables (org invites, sandbox sessions, audit log)
     await initializeAdminTables();
 
-    console.log('[AdminInit] All admin tables initialized successfully');
+    if (process.env.NODE_ENV !== 'production') console.log('[AdminInit] All admin tables initialized successfully');
 
     return NextResponse.json({
       success: true,

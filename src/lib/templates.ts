@@ -214,7 +214,7 @@ export const TemplatesService = {
     await ensureTemplatesTable();
 
     const result = await sql`
-      SELECT * FROM templates WHERE id = ${templateId}::uuid AND org_id = ${orgId}
+      SELECT * FROM templates WHERE id = ${templateId} AND org_id = ${orgId}
     `;
     if (result.length === 0) return null;
     return mapTemplateFromDb(result[0]);
@@ -263,7 +263,7 @@ export const TemplatesService = {
         document_url = COALESCE(${input.documentUrl ?? null}, document_url),
         document_data = COALESCE(${input.documentData ?? null}, document_data),
         updated_at = NOW()
-      WHERE id = ${templateId}::uuid AND org_id = ${orgId}
+      WHERE id = ${templateId} AND org_id = ${orgId}
       RETURNING *
     `;
 
@@ -309,15 +309,15 @@ export const TemplatesService = {
     await sql`
       UPDATE templates
       SET use_count = use_count + 1, last_used_at = NOW()
-      WHERE id = ${templateId}::uuid AND org_id = ${orgId}
+      WHERE id = ${templateId} AND org_id = ${orgId}
     `;
   },
 
   async setFusionForm(orgId: string, templateId: string, fusionFormId: string, fusionFormUrl: string): Promise<Template | null> {
     const result = await sql`
       UPDATE templates
-      SET has_fusion_form = true, fusion_form_id = ${fusionFormId}::uuid, fusion_form_url = ${fusionFormUrl}, updated_at = NOW()
-      WHERE id = ${templateId}::uuid AND org_id = ${orgId}
+      SET has_fusion_form = true, fusion_form_id = ${fusionFormId}, fusion_form_url = ${fusionFormUrl}, updated_at = NOW()
+      WHERE id = ${templateId} AND org_id = ${orgId}
       RETURNING *
     `;
     if (result.length === 0) return null;
@@ -328,7 +328,7 @@ export const TemplatesService = {
     const result = await sql`
       UPDATE templates
       SET has_fusion_form = false, fusion_form_id = NULL, fusion_form_url = NULL, updated_at = NOW()
-      WHERE id = ${templateId}::uuid AND org_id = ${orgId}
+      WHERE id = ${templateId} AND org_id = ${orgId}
       RETURNING *
     `;
     if (result.length === 0) return null;
@@ -336,7 +336,7 @@ export const TemplatesService = {
   },
 
   async deleteTemplate(orgId: string, templateId: string): Promise<boolean> {
-    const result = await sql`DELETE FROM templates WHERE id = ${templateId}::uuid AND org_id = ${orgId} RETURNING id`;
+    const result = await sql`DELETE FROM templates WHERE id = ${templateId} AND org_id = ${orgId} RETURNING id`;
     return result.length > 0;
   },
 

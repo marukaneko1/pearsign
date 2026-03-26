@@ -37,14 +37,14 @@ export const POST = withTenant(
         );
       }
 
-      console.log("[Void Envelope] Step:", step, "envelopeId:", envelopeId, "tenantId:", tenantId, "userId:", userId);
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "envelopeId:", envelopeId, "tenantId:", tenantId, "userId:", userId);
 
       step = "fetching envelope";
       // Get envelope details from envelope_documents table (main app table)
       const envelopeDocs = await sql`
         SELECT envelope_id, title, org_id FROM envelope_documents WHERE envelope_id = ${envelopeId}
       `;
-      console.log("[Void Envelope] Step:", step, "found in envelope_documents:", envelopeDocs.length);
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "found in envelope_documents:", envelopeDocs.length);
 
       if (envelopeDocs.length === 0) {
         console.error("[Void Envelope] Envelope not found in envelope_documents:", envelopeId);
@@ -67,7 +67,7 @@ export const POST = withTenant(
       // Use the envelope's actual org_id for consistency
       const envelopeOrgId = envelopeDocs[0].org_id;
 
-      console.log("[Void Envelope] Using envelopeOrgId:", envelopeOrgId, "tenantId from session:", tenantId);
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Using envelopeOrgId:", envelopeOrgId, "tenantId from session:", tenantId);
 
       // Check if all sessions are already voided (query by envelope_id only for robustness)
       const existingStatus = await sql`
@@ -76,7 +76,7 @@ export const POST = withTenant(
         LIMIT 1
       `;
       if (existingStatus.length > 0 && existingStatus[0].status === 'voided') {
-        console.log("[Void Envelope] Envelope already voided:", envelopeId);
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Envelope already voided:", envelopeId);
         return NextResponse.json(
           { success: true, message: "Envelope already voided" }
         );
@@ -88,25 +88,25 @@ export const POST = withTenant(
         SELECT * FROM envelope_signing_sessions
         WHERE envelope_id = ${envelopeId} AND org_id = ${envelopeOrgId}
       `;
-      console.log("[Void Envelope] Step:", step, "sessions found:", sessions.length, "using org_id:", envelopeOrgId);
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "sessions found:", sessions.length, "using org_id:", envelopeOrgId);
 
       // Fallback: If no sessions found with org_id, try without org_id filter
       // This handles potential org_id mismatch between envelope_documents and signing_sessions
       if (sessions.length === 0) {
-        console.log("[Void Envelope] No sessions with org_id, trying fallback query without org_id filter");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] No sessions with org_id, trying fallback query without org_id filter");
         sessions = await sql`
           SELECT * FROM envelope_signing_sessions
           WHERE envelope_id = ${envelopeId}
         `;
-        console.log("[Void Envelope] Fallback query found:", sessions.length, "sessions");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Fallback query found:", sessions.length, "sessions");
       }
 
       // Debug: Log session details
       if (sessions.length > 0) {
-        console.log("[Void Envelope] Session emails:", sessions.map(s => s.recipient_email));
-        console.log("[Void Envelope] Session statuses:", sessions.map(s => s.status));
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Session emails:", sessions.map(s => s.recipient_email));
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Session statuses:", sessions.map(s => s.status));
       } else {
-        console.log("[Void Envelope] WARNING: No sessions found for envelope even with fallback");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] WARNING: No sessions found for envelope even with fallback");
       }
 
       step = "updating sessions";
@@ -117,7 +117,7 @@ export const POST = withTenant(
         SET status = 'voided'
         WHERE envelope_id = ${envelopeId}
       `;
-      console.log("[Void Envelope] Step:", step, "done");
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "done");
 
       step = "updating envelope";
       // Note: The main app computes envelope status from signing sessions,
@@ -129,10 +129,10 @@ export const POST = withTenant(
           SET status = 'voided'
           WHERE id = ${envelopeId} AND organization_id = ${tenantId}
         `;
-        console.log("[Void Envelope] Step:", step, "updated envelopes table");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "updated envelopes table");
       } catch (envUpdateErr) {
         // This is OK - envelopes table may not exist for main app documents
-        console.log("[Void Envelope] Step:", step, "envelopes table update skipped (may not exist)");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "envelopes table update skipped (may not exist)");
       }
 
       step = "logging event";
@@ -146,7 +146,7 @@ export const POST = withTenant(
           actorName: context.user.name,
           details: { reason, sessionCount: sessions.length },
         });
-        console.log("[Void Envelope] Step:", step, "done");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "done");
       } catch (logErr) {
         console.error("[Void Envelope] Error logging event (non-fatal):", logErr);
       }
@@ -160,7 +160,7 @@ export const POST = withTenant(
           reason: reason || "No reason provided",
           orgId: envelopeOrgId, // Use envelope's org
         });
-        console.log("[Void Envelope] Step:", step, "done");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Step:", step, "done");
       } catch (notifyErr) {
         console.error("[Void Envelope] Error sending notifications (non-fatal):", notifyErr);
       }
@@ -174,7 +174,7 @@ export const POST = withTenant(
           envelopeTitle: documentTitle,
           reason: reason || "No reason provided",
         });
-        console.log("[Void Envelope] Created in-app notification for sender");
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Created in-app notification for sender");
       } catch (notifyErr) {
         console.error("[Void Envelope] Error creating in-app notification (non-fatal):", notifyErr);
       }
@@ -183,14 +183,14 @@ export const POST = withTenant(
       // Send void notification emails to all pending recipients
       const emailResults: Array<{ email: string; success: boolean; error?: string }> = [];
 
-      console.log("[Void Envelope] Sessions to notify:", sessions.length);
-      console.log("[Void Envelope] Session statuses:", sessions.map((s) => ({ email: s.recipient_email, status: s.status })));
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Sessions to notify:", sessions.length);
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Session statuses:", sessions.map((s) => ({ email: s.recipient_email, status: s.status })));
 
       for (const session of sessions) {
         // Send void email to sessions that are still pending action (pending, sent, viewed)
         // Skip: completed (already signed), declined (already took action), voided (already notified)
         const shouldNotify = ["pending", "sent", "viewed"].includes(session.status);
-        console.log("[Void Envelope] Checking session:", session.recipient_email, "status:", session.status, "shouldNotify:", shouldNotify);
+        if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Checking session:", session.recipient_email, "status:", session.status, "shouldNotify:", shouldNotify);
         if (shouldNotify) {
           try {
             const result = await sendDocumentVoidedEmail({
@@ -208,7 +208,7 @@ export const POST = withTenant(
               error: result.error,
             });
 
-            console.log("[Void Envelope] Sent void email to:", session.recipient_email, result);
+            if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Sent void email to:", session.recipient_email, result);
           } catch (emailErr) {
             console.error("[Void Envelope] Error sending email (non-fatal):", emailErr);
             emailResults.push({
@@ -220,7 +220,7 @@ export const POST = withTenant(
         }
       }
 
-      console.log("[Void Envelope] Completed successfully. Email results:", emailResults);
+      if (process.env.NODE_ENV !== 'production') console.log("[Void Envelope] Completed successfully. Email results:", emailResults);
 
       // Summarize email results
       const emailsSent = emailResults.filter(r => r.success).length;

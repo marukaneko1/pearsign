@@ -21,7 +21,7 @@ function parseSigningToken(token: string): { envelopeId: string } | null {
 export async function POST(request: NextRequest, context: RouteParams) {
   try {
     const { token } = await context.params;
-    console.log("[Viewed POST] Marking as viewed for token:", token);
+    if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Marking as viewed for token:", token);
 
     // Check if already viewed
     const existing = await sql`
@@ -31,13 +31,13 @@ export async function POST(request: NextRequest, context: RouteParams) {
     `;
 
     if (existing.length === 0) {
-      console.log("[Viewed POST] Session not found for token:", token);
+      if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Session not found for token:", token);
       return NextResponse.json({ success: false, error: "Session not found" });
     }
 
     const session = existing[0];
     const isFirstView = session.viewed_at === null;
-    console.log("[Viewed POST] Session found, isFirstView:", isFirstView);
+    if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Session found, isFirstView:", isFirstView);
 
     // Update viewed_at timestamp if not already set
     if (isFirstView) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         SET viewed_at = NOW(), status = 'viewed'
         WHERE token = ${token} AND viewed_at IS NULL
       `;
-      console.log("[Viewed POST] Updated viewed_at timestamp");
+      if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Updated viewed_at timestamp");
 
       // Get document title
       const tokenData = parseSigningToken(token);
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
       // Send email notification to sender
       try {
-        console.log("[Viewed POST] Looking for sender email...");
+        if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Looking for sender email...");
         let senderName = 'PearSign User';
         let senderEmail = '';
 
@@ -89,10 +89,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
           if (auditResult.length > 0 && auditResult[0].actor_email) {
             senderName = auditResult[0].actor_name || 'PearSign User';
             senderEmail = auditResult[0].actor_email;
-            console.log("[Viewed POST] Found sender from audit log:", senderEmail);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Found sender from audit log:", senderEmail);
           }
         } catch (auditErr) {
-          console.log("[Viewed POST] Audit log lookup failed:", auditErr);
+          if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Audit log lookup failed:", auditErr);
         }
 
         // Fallback to user_profiles
@@ -119,10 +119,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
             if (profileResult.length > 0 && profileResult[0].email) {
               senderName = `${profileResult[0].first_name || ''} ${profileResult[0].last_name || ''}`.trim() || 'PearSign User';
               senderEmail = profileResult[0].email;
-              console.log("[Viewed POST] Found sender from user_profiles:", senderEmail);
+              if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Found sender from user_profiles:", senderEmail);
             }
           } catch (profileErr) {
-            console.log("[Viewed POST] Profile lookup failed:", profileErr);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Profile lookup failed:", profileErr);
           }
         }
 
@@ -132,12 +132,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
           if (fallbackEmail && fallbackEmail !== 'no-reply@premiumcapital.com') {
             senderEmail = fallbackEmail;
             senderName = 'Document Sender';
-            console.log("[Viewed POST] Using SENDGRID_FROM_EMAIL as fallback:", senderEmail);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Using SENDGRID_FROM_EMAIL as fallback:", senderEmail);
           }
         }
 
         if (senderEmail) {
-          console.log("[Viewed POST] Sending notification to:", senderEmail);
+          if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Sending notification to:", senderEmail);
           const emailResult = await sendDocumentViewedNotification({
             documentName: documentTitle,
             viewerName: session.recipient_name as string,
@@ -150,12 +150,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
           });
 
           if (emailResult.success) {
-            console.log("[Viewed POST] Email sent successfully to:", senderEmail);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Email sent successfully to:", senderEmail);
           } else {
-            console.log("[Viewed POST] Email failed:", emailResult.error);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] Email failed:", emailResult.error);
           }
         } else {
-          console.log("[Viewed POST] No sender email found, skipping notification");
+          if (process.env.NODE_ENV !== 'production') console.log("[Viewed POST] No sender email found, skipping notification");
         }
       } catch (emailErr) {
         console.error("[Viewed POST] Error sending email:", emailErr);

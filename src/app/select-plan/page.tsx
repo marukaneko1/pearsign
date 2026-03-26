@@ -82,6 +82,7 @@ export default function SelectPlanPage() {
     setIsLoading(true);
 
     if (planId === "free") {
+      setIsLoading(false);
       router.push("/login");
       return;
     }

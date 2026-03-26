@@ -11,6 +11,7 @@ import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
 import { TemplateVersioningService } from '@/lib/template-versioning';
 import { checkFeature } from '@/lib/tenant';
 import { sql } from '@/lib/db';
+import { logTemplateEvent } from '@/lib/audit-log';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -159,6 +160,16 @@ export const POST = withTenant(
         console.error('Error creating template version:', versionError);
         // Template still created, just versioning failed
       }
+
+      logTemplateEvent('template.created', {
+        orgId: tenantId,
+        templateId: template.id,
+        templateName: template.name,
+        actorId: context.user.id,
+        actorName: context.userName,
+        actorEmail: context.userEmail,
+        details: { category: template.category },
+      });
 
       return NextResponse.json({
         success: true,

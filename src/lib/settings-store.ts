@@ -548,7 +548,7 @@ class SettingsStore {
   async sendTestEmail(templateId: string, toEmail: string): Promise<void> {
     await this.simulateDelay(1000);
     // In production: actually send email via backend
-    console.log(`Sending test email for template ${templateId} to ${toEmail}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`Sending test email for template ${templateId} to ${toEmail}`);
   }
 
   // ============================================

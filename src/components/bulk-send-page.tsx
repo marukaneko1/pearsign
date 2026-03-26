@@ -15,7 +15,7 @@ import {
   Plus, Trash2, Send, Sparkles, Check, AlertTriangle, Eye, X, BarChart3,
   TrendingUp, TrendingDown, Calendar, PieChart, Target,
   Zap, PenTool, CalendarDays, Loader2, RefreshCw, Ban, ChevronDown, ChevronUp,
-  MoreVertical, Bell, Search,
+  MoreVertical, Bell, Search, Settings,
 } from "lucide-react";
 import {
   Dialog,
@@ -1881,6 +1881,22 @@ export function BulkSendPage() {
                           </div>
                           {job.status === "processing" && (
                             <Progress value={(job.processedCount / job.totalRecipients) * 100} className="h-2 mt-3 ml-11" />
+                          )}
+                          {job.status === "failed" && job.failedCount > 0 && (
+                            <div className="mt-3 ml-11 p-3 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="text-sm text-red-700 font-medium">All recipients failed to process</p>
+                              <p className="text-xs text-red-600 mt-1">This is usually caused by missing email service configuration (e.g. SendGrid API key).</p>
+                              <a href="/?view=integrations">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-2 text-red-700 border-red-300 hover:bg-red-100"
+                                >
+                                  <Settings className="h-3 w-3 mr-1" />
+                                  Configure Email in Settings
+                                </Button>
+                              </a>
+                            </div>
                           )}
                         </div>
 

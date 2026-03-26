@@ -8,6 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   Send,
   Sparkles,
   FileText,
@@ -267,6 +275,140 @@ interface RecentActivity {
   color: string;
 }
 
+// ─── Lightweight Markdown → styled JSX renderer ─────────────────────────────
+function stripMd(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1');
+}
+
+function DocumentPreview({ content }: { content: string }) {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let key = 0;
+  let i = 0;
+
+  while (i < lines.length) {
+    const raw     = lines[i];
+    const trimmed = raw.trim();
+    i++;
+
+    if (!trimmed) {
+      elements.push(<div key={key++} className="h-2" />);
+      continue;
+    }
+
+    // H1 — centered, all-caps, bold
+    if (/^#\s/.test(trimmed)) {
+      const text = stripMd(trimmed.replace(/^#+\s*/, '')).toUpperCase();
+      elements.push(
+        <h1 key={key++} style={{ fontFamily: "'Times New Roman', Times, serif" }}
+          className="text-[13pt] font-bold text-center tracking-wide mt-6 mb-3 text-black">
+          {text}
+        </h1>
+      );
+      continue;
+    }
+    // H2 — bold, left, uppercase
+    if (/^##\s/.test(trimmed)) {
+      const text = stripMd(trimmed.replace(/^#+\s*/, ''));
+      elements.push(
+        <h2 key={key++} style={{ fontFamily: "'Times New Roman', Times, serif" }}
+          className="text-[12pt] font-bold mt-5 mb-2 text-black">
+          {text}
+        </h2>
+      );
+      continue;
+    }
+    // H3 — bold-italic
+    if (/^###/.test(trimmed)) {
+      const text = stripMd(trimmed.replace(/^#+\s*/, ''));
+      elements.push(
+        <h3 key={key++} style={{ fontFamily: "'Times New Roman', Times, serif" }}
+          className="text-[12pt] font-bold italic mt-3 mb-1 text-black">
+          {text}
+        </h3>
+      );
+      continue;
+    }
+    // HR — double rule like a legal document
+    if (/^(-{3,}|={3,}|_{3,})$/.test(trimmed)) {
+      elements.push(
+        <div key={key++} className="my-4">
+          <hr className="border-black border-t-2" />
+          <hr className="border-black border-t mt-0.5" />
+        </div>
+      );
+      continue;
+    }
+    // Bullet
+    if (/^[-*•]\s/.test(trimmed)) {
+      const text = stripMd(trimmed.replace(/^[-*•]\s*/, ''));
+      elements.push(
+        <div key={key++} className="flex gap-3 ml-6 my-0.5"
+          style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+          <span className="text-black shrink-0 mt-0.5">&bull;</span>
+          <p className="text-[11pt] text-black leading-[1.6]">{text}</p>
+        </div>
+      );
+      continue;
+    }
+    // Numbered list
+    const numMatch = trimmed.match(/^(\d+\.)\s+(.*)/);
+    if (numMatch) {
+      elements.push(
+        <div key={key++} className="flex gap-3 ml-6 my-0.5"
+          style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+          <span className="text-black font-bold text-[11pt] shrink-0 w-7">{numMatch[1]}</span>
+          <p className="text-[11pt] text-black leading-[1.6]">{stripMd(numMatch[2])}</p>
+        </div>
+      );
+      continue;
+    }
+    // Regular paragraph
+    elements.push(
+      <p key={key++} style={{ fontFamily: "'Times New Roman', Times, serif" }}
+        className="text-[11pt] text-black leading-[1.6] my-2">
+        {stripMd(trimmed)}
+      </p>
+    );
+  }
+
+  // Signature block preview at the bottom
+  const sigBlock = (
+    <div key="sig-block" className="mt-8 pt-4 border-t-2 border-black"
+      style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+      <p className="text-[10pt] italic text-black mb-5 leading-[1.5]">
+        IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+      </p>
+      <div className="grid grid-cols-2 gap-10">
+        {['PARTY 1:', 'PARTY 2:'].map((label) => (
+          <div key={label}>
+            <p className="text-[10pt] font-bold text-black mb-6">{label}</p>
+            {['Signature', 'Printed Name', 'Title', 'Date'].map((lbl) => (
+              <div key={lbl} className="mb-5">
+                <div className={`border-b border-black ${lbl === 'Date' ? 'w-3/5' : 'w-full'} mb-1`} />
+                <p className="text-[8pt] text-gray-500">{lbl}</p>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="max-w-none px-2">
+      {elements}
+      {content.trim().length > 0 && sigBlock}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("hub");
@@ -288,6 +430,7 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
   const [templateSearch, setTemplateSearch] = useState("");
   const [templateCategory, setTemplateCategory] = useState("All");
   const [templateView, setTemplateView] = useState<"grid" | "list">("grid");
+  const [previewTemplate, setPreviewTemplate] = useState<DocumentType | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("doc-center-favorites");
@@ -544,7 +687,15 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Chat request failed');
+        let errorMessage = 'Chat request failed';
+        try {
+          const errData = await response.json();
+          if (errData?.message) errorMessage = errData.message;
+          else if (errData?.error === 'no_ai_provider') {
+            errorMessage = 'No AI provider configured. Add an OpenAI or Anthropic API key in Settings → Integrations.';
+          }
+        } catch {}
+        throw new Error(errorMessage);
       }
 
       const reader = response.body?.getReader();
@@ -599,14 +750,15 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
       }
     } catch (error) {
       console.error('Stream chat error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to get a response. Please try again.';
       setMessages(prev => prev.map(m =>
         m.id === assistantMessageId
-          ? { ...m, content: m.content || "I'm sorry, I encountered an issue. Please try again." }
+          ? { ...m, content: m.content || `I'm sorry, I encountered an issue: ${errorMsg}` }
           : m
       ));
       toast({
         title: "Chat error",
-        description: "Failed to get a response. Please try again.",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
@@ -735,44 +887,17 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
       <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-document-center-title">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[hsl(var(--pearsign-primary))] to-blue-600 flex items-center justify-center shrink-0">
-                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-              </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight" data-testid="text-document-center-title">
               Document Center
             </h1>
-            <p className="text-xs sm:text-base text-muted-foreground mt-1">
-              Create, manage, and organize your documents
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Create, upload, and manage your documents
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {aiConfigured !== null && (
-              <Badge
-                variant={aiConfigured ? "default" : "secondary"}
-                className={cn(
-                  "text-xs",
-                  aiConfigured
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                )}
-                data-testid="badge-ai-status"
-              >
-                {aiConfigured ? (
-                  <>
-                    <Check className="h-3 w-3 mr-1" />
-                    {aiProvider === 'openai' ? 'OpenAI' : aiProvider === 'anthropic' ? 'Claude' : 'AI'} Connected
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    Using Templates
-                  </>
-                )}
-              </Badge>
-            )}
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
               size="sm"
+              variant="outline"
               onClick={() => {
                 setMessages([]);
                 setGeneratedDocument("");
@@ -782,8 +907,8 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
               }}
               data-testid="button-ai-assistant"
             >
-              <MessageCircle className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">AI Assistant</span>
+              <MessageCircle className="h-4 w-4 mr-2" />
+              AI Assistant
             </Button>
             <Button
               size="sm"
@@ -791,8 +916,8 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
               className="bg-[hsl(var(--pearsign-primary))]"
               data-testid="button-new-document"
             >
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">New Document</span>
+              <Plus className="h-4 w-4 mr-2" />
+              New Document
             </Button>
           </div>
         </div>
@@ -818,226 +943,101 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
           </TabsList>
 
           {/* ======================== OVERVIEW TAB ======================== */}
-          <TabsContent value="overview" className="space-y-4 sm:space-y-6">
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-              <Card className="p-3 sm:p-5" data-testid="card-stat-created">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+          <TabsContent value="overview" className="space-y-6">
+            {/* Action cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button
+                className="text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
+                onClick={() => setHubTab("create")}
+                data-testid="card-action-create"
+              >
+                <Card className="p-5 h-full border-border/60 hover:border-primary/40 hover:shadow-md transition-all duration-150 cursor-pointer">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--pearsign-primary))] to-blue-600 flex items-center justify-center mb-4">
+                    <Wand2 className="h-5 w-5 text-white" />
                   </div>
-                  <Badge variant="secondary" className="text-[10px] sm:text-xs bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 hidden sm:flex">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    +12%
-                  </Badge>
-                </div>
-                <p className="text-xl sm:text-2xl font-bold">24</p>
-                <p className="text-[10px] sm:text-sm text-muted-foreground">Documents Created</p>
-              </Card>
-              <Card className="p-3 sm:p-5" data-testid="card-stat-signed">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500" />
+                  <p className="font-semibold text-sm mb-1">Create with AI</p>
+                  <p className="text-xs text-muted-foreground">Generate a document from a template using AI</p>
+                  <div className="mt-4 flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    Get started <ArrowRight className="h-3 w-3" />
                   </div>
-                  <Badge variant="secondary" className="text-[10px] sm:text-xs bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 hidden sm:flex">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    +8%
-                  </Badge>
-                </div>
-                <p className="text-xl sm:text-2xl font-bold">18</p>
-                <p className="text-[10px] sm:text-sm text-muted-foreground">Signed This Month</p>
-              </Card>
-              <Card className="p-3 sm:p-5" data-testid="card-stat-templates">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                    <Layers className="h-4 w-4 sm:h-5 sm:w-5 text-violet-500" />
-                  </div>
-                </div>
-                <p className="text-xl sm:text-2xl font-bold">{DOCUMENT_TYPES.length}</p>
-                <p className="text-[10px] sm:text-sm text-muted-foreground">Templates Available</p>
-              </Card>
-              <Card className="p-3 sm:p-5" data-testid="card-stat-favorites">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                    <Star className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
-                  </div>
-                </div>
-                <p className="text-xl sm:text-2xl font-bold">{favorites.size}</p>
-                <p className="text-[10px] sm:text-sm text-muted-foreground">Favorite Templates</p>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Quick Actions */}
-              <div className="lg:col-span-1 space-y-4">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Quick Actions</h3>
-                <div className="space-y-2">
-                  <Card
-                    className="p-4 cursor-pointer hover-elevate transition-all group"
-                    onClick={() => setHubTab("create")}
-                    data-testid="card-action-create"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[hsl(var(--pearsign-primary))] to-blue-600 flex items-center justify-center">
-                        <Wand2 className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">Create with AI</p>
-                        <p className="text-xs text-muted-foreground">Generate a document using AI</p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Card>
-                  <Card
-                    className="p-4 cursor-pointer hover-elevate transition-all group"
-                    onClick={() => setHubTab("upload")}
-                    data-testid="card-action-upload"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                        <FileUp className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">Upload Document</p>
-                        <p className="text-xs text-muted-foreground">Import PDF, Word, or text files</p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Card>
-                  <Card
-                    className="p-4 cursor-pointer hover-elevate transition-all group"
-                    onClick={() => setHubTab("templates")}
-                    data-testid="card-action-browse"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                        <BookOpen className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">Browse Templates</p>
-                        <p className="text-xs text-muted-foreground">{DOCUMENT_TYPES.length} professional templates</p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Card>
-                  <Card
-                    className="p-4 cursor-pointer hover-elevate transition-all group"
-                    onClick={() => {
-                      setMessages([]);
-                      setGeneratedDocument("");
-                      setDocumentTitle("Untitled Document");
-                      setInput("");
-                      setStep("ai-chat");
-                    }}
-                    data-testid="card-action-assistant"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
-                        <MessageCircle className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">AI Assistant</p>
-                        <p className="text-xs text-muted-foreground">Chat to build any document</p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Card>
-                  {!aiConfigured && aiConfigured !== null && (
-                    <Card
-                      className="p-4 cursor-pointer hover-elevate transition-all group border-amber-200 dark:border-amber-800"
-                      onClick={() => { window.location.href = '/?tab=integrations'; }}
-                      data-testid="card-action-connect-ai"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-                          <Settings className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">Connect AI Provider</p>
-                          <p className="text-xs text-muted-foreground">Enable AI-powered generation</p>
-                        </div>
-                        <ArrowUpRight className="h-4 w-4 text-amber-500" />
-                      </div>
-                    </Card>
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Activity */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Recent Activity</h3>
-                </div>
-                <Card className="divide-y divide-border" data-testid="card-recent-activity">
-                  {recentActivity.map((activity) => {
-                    const ActivityIcon = activity.icon;
-                    return (
-                      <div key={activity.id} className="flex items-center gap-4 p-4 hover-elevate">
-                        <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center bg-muted")}>
-                          <ActivityIcon className={cn("h-4 w-4", activity.color)} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{activity.documentName}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{activity.type}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">{activity.timestamp}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
                 </Card>
-              </div>
+              </button>
+
+              <button
+                className="text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
+                onClick={() => setHubTab("upload")}
+                data-testid="card-action-upload"
+              >
+                <Card className="p-5 h-full border-border/60 hover:border-emerald-400/50 hover:shadow-md transition-all duration-150 cursor-pointer">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4">
+                    <FileUp className="h-5 w-5 text-white" />
+                  </div>
+                  <p className="font-semibold text-sm mb-1">Upload Document</p>
+                  <p className="text-xs text-muted-foreground">Import a PDF, Word, or text file to sign</p>
+                  <div className="mt-4 flex items-center gap-1 text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Upload file <ArrowRight className="h-3 w-3" />
+                  </div>
+                </Card>
+              </button>
+
+              <button
+                className="text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
+                onClick={() => setHubTab("templates")}
+                data-testid="card-action-browse"
+              >
+                <Card className="p-5 h-full border-border/60 hover:border-violet-400/50 hover:shadow-md transition-all duration-150 cursor-pointer">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-4">
+                    <BookOpen className="h-5 w-5 text-white" />
+                  </div>
+                  <p className="font-semibold text-sm mb-1">Browse Templates</p>
+                  <p className="text-xs text-muted-foreground">{DOCUMENT_TYPES.length} ready-to-use professional templates</p>
+                  <div className="mt-4 flex items-center gap-1 text-xs text-violet-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Browse <ArrowRight className="h-3 w-3" />
+                  </div>
+                </Card>
+              </button>
             </div>
 
-            {/* Popular Templates Row */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Popular Templates</h3>
-                <Button variant="ghost" size="sm" onClick={() => setHubTab("templates")} data-testid="button-view-all-templates">
-                  View All
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
+            {/* Connect AI nudge (only if not configured) */}
+            {!aiConfigured && aiConfigured !== null && (
+              <div
+                className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 cursor-pointer"
+                onClick={() => { window.location.href = '/?tab=integrations'; }}
+                data-testid="card-action-connect-ai"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Connect an AI provider to unlock full generation</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500">OpenAI or Claude — takes 30 seconds</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-amber-600 shrink-0" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {DOCUMENT_TYPES.slice(0, 3).map((type) => {
-                  const Icon = type.icon;
+            )}
+
+            {/* Recent Activity */}
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Recent Activity</h3>
+              <Card className="divide-y divide-border/60" data-testid="card-recent-activity">
+                {recentActivity.map((activity) => {
+                  const ActivityIcon = activity.icon;
                   return (
-                    <Card
-                      key={type.id}
-                      className="overflow-hidden cursor-pointer hover-elevate group"
-                      onClick={() => handleSelectType(type)}
-                      data-testid={`card-popular-template-${type.id}`}
-                    >
-                      <div className={cn("h-2 bg-gradient-to-r", type.color)} />
-                      <div className="p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className={cn("w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center", type.color)}>
-                            <Icon className="h-5 w-5 text-white" />
-                          </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleFavorite(type.id); }}
-                            className="p-1"
-                            data-testid={`button-favorite-${type.id}`}
-                          >
-                            <Star className={cn("h-4 w-4 transition-colors", favorites.has(type.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
-                          </button>
-                        </div>
-                        <h4 className="font-semibold text-sm mb-1">{type.name}</h4>
-                        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{type.description}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="text-xs">{type.category}</Badge>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <BarChart3 className="h-3 w-3" />
-                            {type.popularity}% popular
-                          </div>
-                        </div>
+                    <div key={activity.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors">
+                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center bg-muted shrink-0")}>
+                        <ActivityIcon className={cn("h-4 w-4", activity.color)} />
                       </div>
-                    </Card>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{activity.documentName}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{activity.type}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{activity.timestamp}</span>
+                    </div>
                   );
                 })}
-              </div>
+              </Card>
             </div>
           </TabsContent>
 
@@ -1212,6 +1212,7 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
                       isFavorite={true}
                       onSelect={handleSelectType}
                       onToggleFavorite={toggleFavorite}
+                      onPreview={setPreviewTemplate}
                     />
                   ))}
                 </div>
@@ -1239,6 +1240,7 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
                     isFavorite={favorites.has(type.id)}
                     onSelect={handleSelectType}
                     onToggleFavorite={toggleFavorite}
+                    onPreview={setPreviewTemplate}
                   />
                 ))}
               </div>
@@ -1412,6 +1414,68 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* ======================== TEMPLATE PREVIEW DIALOG ======================== */}
+        <Dialog open={!!previewTemplate} onOpenChange={(open) => { if (!open) setPreviewTemplate(null); }}>
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+            {previewTemplate && (() => {
+              const PreviewIcon = previewTemplate.icon;
+              const previewContent = generateDocumentFromTemplate(previewTemplate.id, {});
+              return (
+                <>
+                  {/* Header */}
+                  <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+                    <div className="flex items-start gap-3">
+                      <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0", previewTemplate.color)}>
+                        <PreviewIcon className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <DialogTitle className="text-base font-semibold leading-tight">{previewTemplate.name}</DialogTitle>
+                        <DialogDescription className="text-xs mt-0.5">{previewTemplate.description}</DialogDescription>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0 text-xs">{previewTemplate.category}</Badge>
+                    </div>
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-1.5 mt-3">
+                      Showing default template — placeholder values (in brackets) will be filled when you create the document.
+                    </p>
+                  </DialogHeader>
+
+                  {/* Document content */}
+                  <ScrollArea className="flex-1 min-h-0">
+                    <div className="px-6 py-5">
+                      <pre className="text-xs leading-relaxed font-mono text-foreground/85 whitespace-pre-wrap break-words bg-muted/30 rounded-xl p-5 border border-border/40">
+                        {previewContent}
+                      </pre>
+                    </div>
+                  </ScrollArea>
+
+                  {/* Footer actions */}
+                  <div className="px-6 py-4 border-t shrink-0 flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {previewTemplate.questions.length} questions to personalise this document
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setPreviewTemplate(null)}>
+                        Close
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-[hsl(var(--pearsign-primary))]"
+                        onClick={() => {
+                          setPreviewTemplate(null);
+                          handleSelectType(previewTemplate);
+                        }}
+                      >
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        Use This Template
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -1778,10 +1842,8 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950">
-              <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed" data-testid="text-document-preview">
-                {generatedDocument}
-              </pre>
+            <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950" data-testid="text-document-preview">
+              <DocumentPreview content={generatedDocument} />
             </div>
 
             <div className="p-4 border-t flex items-center justify-between">
@@ -2047,10 +2109,8 @@ export function AIGeneratorPage({ onSendForSignature }: AIGeneratorPageProps) {
                   Ready
                 </Badge>
               </div>
-              <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950">
-                <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed" data-testid="text-ai-document-preview">
-                  {generatedDocument}
-                </pre>
+              <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950" data-testid="text-ai-document-preview">
+                <DocumentPreview content={generatedDocument} />
               </div>
               <div className="p-3 border-t flex items-center justify-end gap-2">
                 <Button variant="outline" size="default" onClick={handleCopyDocument} data-testid="button-copy-ai-preview">
@@ -2090,9 +2150,10 @@ interface TemplateCardProps {
   isFavorite: boolean;
   onSelect: (type: DocumentType) => void;
   onToggleFavorite: (id: string) => void;
+  onPreview: (type: DocumentType) => void;
 }
 
-function TemplateCard({ type, view, isFavorite, onSelect, onToggleFavorite }: TemplateCardProps) {
+function TemplateCard({ type, view, isFavorite, onSelect, onToggleFavorite, onPreview }: TemplateCardProps) {
   const Icon = type.icon;
 
   if (view === "list") {
@@ -2112,10 +2173,14 @@ function TemplateCard({ type, view, isFavorite, onSelect, onToggleFavorite }: Te
           </div>
           <Badge variant="secondary" className="text-xs hidden sm:flex">{type.category}</Badge>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Hash className="h-3 w-3" />
-              {type.questions.length}
-            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onPreview(type); }}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              data-testid={`button-preview-list-${type.id}`}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Preview
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleFavorite(type.id); }}
               className="p-1"
@@ -2152,10 +2217,14 @@ function TemplateCard({ type, view, isFavorite, onSelect, onToggleFavorite }: Te
         <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{type.description}</p>
         <div className="flex items-center justify-between">
           <Badge variant="secondary" className="text-xs">{type.category}</Badge>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <BarChart3 className="h-3 w-3" />
-            {type.popularity}%
-          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); onPreview(type); }}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+            data-testid={`button-preview-grid-${type.id}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Preview
+          </button>
         </div>
       </div>
     </Card>

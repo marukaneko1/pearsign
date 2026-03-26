@@ -117,7 +117,7 @@ export async function initializeRetentionColumns(): Promise<void> {
     // Index may already exist
   }
 
-  console.log('[Retention] Columns and tables initialized');
+  if (process.env.NODE_ENV !== 'production') console.log('[Retention] Columns and tables initialized');
 }
 
 // ============== RETENTION CALCULATION ==============
@@ -234,7 +234,7 @@ export async function markDocumentCompleted(
       )
     `;
 
-    console.log(`[Retention] Document ${documentId} marked completed, expires: ${retentionExpiresAt || 'never'}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Retention] Document ${documentId} marked completed, expires: ${retentionExpiresAt || 'never'}`);
 
     return {
       success: true,
@@ -410,7 +410,7 @@ export async function softDeleteDocument(
       )
     `;
 
-    console.log(`[Retention] Document ${documentId} soft-deleted (${reason})`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Retention] Document ${documentId} soft-deleted (${reason})`);
     return true;
   } catch (error) {
     console.error('[Retention] Error soft-deleting document:', error);
@@ -480,7 +480,7 @@ export async function hardDeleteExpiredDocuments(
       }
     }
 
-    console.log(`[Retention] Hard delete complete: ${result.hardDeleted}/${result.processed}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Retention] Hard delete complete: ${result.hardDeleted}/${result.processed}`);
     return result;
   } catch (error) {
     console.error('[Retention] Error in hard delete:', error);
@@ -506,7 +506,7 @@ export async function runRetentionEnforcement(
   };
 
   try {
-    console.log(`[Retention] Starting enforcement${tenantId ? ` for tenant ${tenantId}` : ''}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Retention] Starting enforcement${tenantId ? ` for tenant ${tenantId}` : ''}`);
 
     // Step 1: Find and soft-delete expired documents
     const expired = await findExpiredDocuments(tenantId);
@@ -531,7 +531,7 @@ export async function runRetentionEnforcement(
     result.hardDeleted = hardDeleteResult.hardDeleted;
     result.errors.push(...hardDeleteResult.errors);
 
-    console.log(`[Retention] Enforcement complete: ${result.softDeleted} soft-deleted, ${result.hardDeleted} hard-deleted`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Retention] Enforcement complete: ${result.softDeleted} soft-deleted, ${result.hardDeleted} hard-deleted`);
     return result;
   } catch (error) {
     console.error('[Retention] Enforcement error:', error);

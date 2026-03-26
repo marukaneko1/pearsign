@@ -39,7 +39,7 @@ async function refreshTokenIfNeeded(config: DropboxConfig, tenantId: string): Pr
     });
 
     if (!response.ok) {
-      console.log("[Dropbox] Token refresh failed, using existing token");
+      if (process.env.NODE_ENV !== 'production') console.log("[Dropbox] Token refresh failed, using existing token");
       return config.accessToken;
     }
 
@@ -148,7 +148,7 @@ export async function uploadToDropbox(
       return { success: false, error: data.error_summary || "Upload failed" };
     }
 
-    console.log("[Dropbox] File uploaded:", data.path_display);
+    if (process.env.NODE_ENV !== 'production') console.log("[Dropbox] File uploaded:", data.path_display);
 
     return {
       success: true,
@@ -189,7 +189,7 @@ export async function saveSignedDocumentToDropbox(
     const result = await uploadToDropbox(fileName, pdfBase64, tenantId);
 
     if (result.success) {
-      console.log("[Dropbox] Auto-saved document:", result.path);
+      if (process.env.NODE_ENV !== 'production') console.log("[Dropbox] Auto-saved document:", result.path);
     } else {
       console.error("[Dropbox] Auto-save failed:", result.error);
     }

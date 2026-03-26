@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await response.json();
 
-    console.log('[AuthContext] Login response:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login response:', {
       success: data.success,
       hasUser: !!data.user,
       hasTenant: !!data.tenant,

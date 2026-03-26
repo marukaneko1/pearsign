@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
   try {
     const { envelopeId } = await context.params;
 
-    console.log('[DocumentAPI] Fetching document for envelope:', envelopeId);
+    if (process.env.NODE_ENV !== 'production') console.log('[DocumentAPI] Fetching document for envelope:', envelopeId);
 
     const documents = await sql`
       SELECT pdf_data, pdf_object_path, title FROM envelope_documents
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
     `;
 
     if (documents.length === 0) {
-      console.log('[DocumentAPI] No document found for envelope:', envelopeId);
+      if (process.env.NODE_ENV !== 'production') console.log('[DocumentAPI] No document found for envelope:', envelopeId);
       return NextResponse.json(
         { error: "Document not found" },
         { status: 404 }
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
     const doc = documents[0];
 
     if (!doc.pdf_data && !doc.pdf_object_path) {
-      console.log('[DocumentAPI] Document has no PDF data:', envelopeId);
+      if (process.env.NODE_ENV !== 'production') console.log('[DocumentAPI] Document has no PDF data:', envelopeId);
       return NextResponse.json(
         { error: "No PDF data available" },
         { status: 404 }
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
     let pdfBuffer: Buffer;
     try {
       if (doc.pdf_object_path) {
-        console.log('[DocumentAPI] Loading PDF from Object Storage');
+        if (process.env.NODE_ENV !== 'production') console.log('[DocumentAPI] Loading PDF from Object Storage');
         const { data } = await TenantObjectStorage.downloadBuffer(doc.pdf_object_path as string);
         pdfBuffer = data;
       } else {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
         }
         pdfBuffer = Buffer.from(base64Data, 'base64');
       }
-      console.log('[DocumentAPI] PDF size:', pdfBuffer.length, 'bytes');
+      if (process.env.NODE_ENV !== 'production') console.log('[DocumentAPI] PDF size:', pdfBuffer.length, 'bytes');
     } catch (decodeError) {
       console.error('[DocumentAPI] Failed to load PDF:', decodeError);
       return NextResponse.json(

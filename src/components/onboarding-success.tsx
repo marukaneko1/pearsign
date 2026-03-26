@@ -174,7 +174,7 @@ export function OnboardingSuccess({
 
           <div className="grid grid-cols-3 gap-2.5 mb-8">
             <a
-              href="#"
+              href="/?view=ai-generator"
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover-elevate text-xs text-gray-600 dark:text-gray-400"
               data-testid="link-tutorial"
             >
@@ -182,7 +182,9 @@ export function OnboardingSuccess({
               <span>Tutorial</span>
             </a>
             <a
-              href="#"
+              href="https://docs.pearsign.com"
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover-elevate text-xs text-gray-600 dark:text-gray-400"
               data-testid="link-docs"
             >
@@ -190,7 +192,9 @@ export function OnboardingSuccess({
               <span>Docs</span>
             </a>
             <a
-              href="#"
+              href="https://docs.pearsign.com/api"
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover-elevate text-xs text-gray-600 dark:text-gray-400"
               data-testid="link-api"
             >

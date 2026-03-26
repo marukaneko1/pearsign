@@ -12,7 +12,7 @@ export async function initCapacitor() {
     const { SplashScreen } = await import('@capacitor/splash-screen');
 
     if (platform === 'ios') {
-      await StatusBar.setStyle({ style: 'default' as any });
+      await StatusBar.setStyle({ style: 'DEFAULT' as Parameters<typeof StatusBar.setStyle>[0]['style'] });
     }
 
     Keyboard.addListener('keyboardWillShow', (info) => {

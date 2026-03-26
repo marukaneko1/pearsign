@@ -110,7 +110,7 @@ export function withTenant<T = unknown>(
         }
       } catch (sessionError) {
         // Session not available - no fallback, require auth
-        console.log('[TenantMiddleware] No session available, authentication required');
+        if (process.env.NODE_ENV !== 'production') console.log('[TenantMiddleware] No session available, authentication required');
       }
 
       // Legacy X-Tenant-ID header path removed for security - all routes require session auth

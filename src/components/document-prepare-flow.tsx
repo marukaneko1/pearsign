@@ -62,10 +62,11 @@ import { useFieldHistory } from "@/hooks/use-field-history";
 import { contentToPdf, pdfBytesToBase64 } from "@/lib/html-to-pdf";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 }
 
 interface DocumentPrepareFlowProps {
@@ -139,37 +140,6 @@ const RECIPIENT_COLORS = [
   '#ec4899', // pink
 ];
 
-const generateDemoId = () => `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-const createDemoEnvelope = (
-  title: string,
-  message: string,
-  recipients: Recipient[],
-  fields: SignatureField[],
-  createdBy = '',
-): Envelope => ({
-  id: generateDemoId(),
-  title,
-  description: message,
-  status: 'in_signing',
-  signingOrder: 'sequential',
-  organizationId: '',
-  createdBy,
-  recipients: recipients.filter(r => r.name && r.email).map((r, index) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    role: r.role,
-    status: 'sent' as const,
-    signingOrder: index + 1,
-  })),
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  metadata: {
-    documentCount: 1,
-    recipientCount: recipients.filter(r => r.name && r.email).length,
-  },
-});
 
 // Import enhanced field editor components
 import {
@@ -223,6 +193,7 @@ const LOCAL_FIELD_TYPES = FIELD_TYPE_CONFIG;
 
 export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialContent }: DocumentPrepareFlowProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [step, setStep] = useState<Step>(initialFile || initialContent ? 'recipients' : 'upload');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -289,6 +260,9 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
 
   // Text field configuration state for sub-menu
   const [textFieldConfig, setTextFieldConfig] = useState<Partial<SignatureField>>({});
+
+  // Mobile fields panel visibility
+  const [mobileFieldsPanelOpen, setMobileFieldsPanelOpen] = useState(false);
 
   // Undo/Redo history for fields
   const {
@@ -395,12 +369,12 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
           pdfData = await selectedFile.arrayBuffer();
         } else if (generatedContent) {
           // Generate PDF from text content
-          console.log('[DocumentPrepare] Generating PDF from content for preview...');
+          if (process.env.NODE_ENV !== 'production') console.log('[DocumentPrepare] Generating PDF from content for preview...');
           const pdfBytes = await contentToPdf(generatedContent, title || 'Document');
           // Create a proper ArrayBuffer copy
           pdfData = new ArrayBuffer(pdfBytes.length);
           new Uint8Array(pdfData).set(pdfBytes);
-          console.log('[DocumentPrepare] Generated PDF size:', pdfBytes.length, 'bytes');
+          if (process.env.NODE_ENV !== 'production') console.log('[DocumentPrepare] Generated PDF size:', pdfBytes.length, 'bytes');
         } else {
           setIsLoading(false);
           return;
@@ -930,10 +904,10 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
         pdfBase64 = btoa(binary);
       } else if (generatedContent) {
         // Generate PDF from text/HTML content
-        console.log('[DocumentPrepare] Generating PDF from content, length:', generatedContent.length);
+        if (process.env.NODE_ENV !== 'production') console.log('[DocumentPrepare] Generating PDF from content, length:', generatedContent.length);
         const pdfBytes = await contentToPdf(generatedContent, title || 'Document');
         pdfBase64 = pdfBytesToBase64(pdfBytes);
-        console.log('[DocumentPrepare] Generated PDF base64 length:', pdfBase64.length);
+        if (process.env.NODE_ENV !== 'production') console.log('[DocumentPrepare] Generated PDF base64 length:', pdfBase64.length);
 
         if (!pdfBase64 || pdfBase64.length < 100) {
           throw new Error('Failed to generate PDF from document content');
@@ -1032,20 +1006,19 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
         // Save contacts to history for future use
         saveContacts(validRecipients);
       } else {
-        // Fallback to demo mode if API fails
-        console.warn('API call failed, using demo mode:', result.error);
-        const demoEnvelope = createDemoEnvelope(title, message, recipients, fields, user?.id ?? '');
-        setSentEnvelope(demoEnvelope);
-        setShowSuccess(true);
-        saveContacts(validRecipients);
+        toast({
+          title: "Failed to send document",
+          description: result.error || "An error occurred while sending. Please try again.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      // Fallback to demo mode on network error
-      console.warn('Network error, using demo mode:', error);
-      const demoEnvelope = createDemoEnvelope(title, message, recipients, fields, user?.id ?? '');
-      setSentEnvelope(demoEnvelope);
-      setShowSuccess(true);
-      saveContacts(validRecipients);
+      console.error('[DocumentPrepare] Network error:', error);
+      toast({
+        title: "Failed to send document",
+        description: error instanceof Error ? error.message : "A network error occurred. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSending(false);
     }
@@ -1097,33 +1070,34 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b bg-background">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to Dashboard
+      <header className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b bg-background gap-2">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <Button variant="ghost" size="sm" onClick={onClose} className="shrink-0 px-2 sm:px-3">
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Back</span>
           </Button>
-          <Separator orientation="vertical" className="h-6" />
-          <div>
-            <h1 className="font-semibold">{title || 'Prepare Document'}</h1>
-            <p className="text-xs text-muted-foreground">
+          <Separator orientation="vertical" className="h-6 hidden sm:block" />
+          <div className="min-w-0">
+            <h1 className="font-semibold text-sm sm:text-base truncate">{title || 'Prepare Document'}</h1>
+            <p className="text-xs text-muted-foreground truncate hidden sm:block">
               {selectedFile?.name}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {step === 'review' && (
             <Button
               onClick={handleSend}
               disabled={isSending}
+              size="sm"
               className="bg-[hsl(var(--pearsign-primary))] hover:bg-[hsl(var(--pearsign-primary))]/90"
             >
               {isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
               ) : (
-                <Send className="h-4 w-4 mr-2" />
+                <Send className="h-4 w-4 sm:mr-2" />
               )}
-              Send for Signature
+              <span className="hidden sm:inline">Send for Signature</span>
             </Button>
           )}
         </div>
@@ -1136,17 +1110,17 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
       <div className="flex-1 overflow-hidden">
         {/* Step 1: Upload */}
         {step === 'upload' && (
-          <div className="h-full flex items-center justify-center p-8">
-            <div className="w-full max-w-xl space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold mb-2">Upload Your Document</h2>
-                <p className="text-muted-foreground">
+          <div className="h-full flex items-center justify-center p-4 sm:p-8 overflow-y-auto">
+            <div className="w-full max-w-xl space-y-4 sm:space-y-6">
+              <div className="text-center mb-4 sm:mb-8">
+                <h2 className="text-xl sm:text-2xl font-bold mb-2">Upload Your Document</h2>
+                <p className="text-muted-foreground text-sm sm:text-base">
                   Start by uploading the document you want to send for signature
                 </p>
               </div>
 
               <div
-                className={`border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer hover:border-[hsl(var(--pearsign-primary))] ${
+                className={`border-2 border-dashed rounded-xl p-6 sm:p-12 text-center transition-all cursor-pointer hover:border-[hsl(var(--pearsign-primary))] ${
                   selectedFile
                     ? 'border-[hsl(var(--pearsign-primary))] bg-[hsl(var(--pearsign-primary))]/5'
                     : 'border-muted-foreground/25'
@@ -1221,10 +1195,10 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
 
         {/* Step 2: Recipients */}
         {step === 'recipients' && (
-          <div className="h-full flex items-center justify-center p-8 overflow-y-auto">
-            <div className="w-full max-w-2xl space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold mb-2">Who needs to sign?</h2>
+          <div className="h-full flex items-center justify-center p-4 sm:p-8 overflow-y-auto">
+            <div className="w-full max-w-2xl space-y-4 sm:space-y-6">
+              <div className="text-center mb-4 sm:mb-8">
+                <h2 className="text-xl sm:text-2xl font-bold mb-2">Who needs to sign?</h2>
                 <p className="text-muted-foreground">
                   Add signers in the order they should receive the document
                 </p>
@@ -1502,10 +1476,30 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
 
         {/* Step 3: Field Mapping */}
         {step === 'fields' && (
-          <div className="h-full flex">
+          <div className="h-full flex relative">
+            {/* Mobile overlay backdrop */}
+            {mobileFieldsPanelOpen && (
+              <div
+                className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+                onClick={() => setMobileFieldsPanelOpen(false)}
+              />
+            )}
             {/* Left Sidebar - Field Tools (Standardized with Template Editor) */}
-            <div className="w-56 border-r bg-muted/30 p-4 flex flex-col overflow-hidden">
-              <div className="space-y-4 flex-1 overflow-y-auto">
+            <div className={cn(
+              "border-r bg-card flex flex-col overflow-hidden transition-all duration-200",
+              "lg:w-56 lg:relative lg:z-auto lg:translate-x-0 lg:bg-muted/30",
+              mobileFieldsPanelOpen
+                ? "fixed left-0 top-0 bottom-0 w-72 z-40 shadow-xl"
+                : "hidden lg:flex"
+            )}>
+              {/* Mobile close button */}
+              <div className="flex items-center justify-between p-3 border-b lg:hidden">
+                <span className="text-sm font-semibold">Field Tools</span>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMobileFieldsPanelOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto p-4">
                 {/* Recipient Selector */}
                 <div>
                   <Label className="text-xs font-semibold text-foreground">
@@ -1753,17 +1747,27 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
             {/* PDF Preview Area */}
             <div className="flex-1 bg-muted/50 flex flex-col overflow-hidden">
               {/* Toolbar */}
-              <div className="flex items-center justify-between px-4 py-2 bg-background border-b">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between px-2 sm:px-4 py-2 bg-background border-b gap-1 flex-wrap">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {/* Mobile fields panel toggle */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="lg:hidden"
+                    onClick={() => setMobileFieldsPanelOpen(true)}
+                  >
+                    <Edit3 className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Fields</span>
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>
                     <ZoomOut className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm font-medium w-16 text-center">{Math.round(zoom * 100)}%</span>
+                  <span className="text-xs sm:text-sm font-medium w-12 sm:w-16 text-center">{Math.round(zoom * 100)}%</span>
                   <Button variant="outline" size="sm" onClick={() => setZoom(z => Math.min(2, z + 0.1))}>
                     <ZoomIn className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1772,8 +1776,8 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm font-medium">
-                    Page {currentPage} of {totalPages}
+                  <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
+                    {currentPage}/{totalPages}
                   </span>
                   <Button
                     variant="outline"
@@ -1784,7 +1788,7 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1815,7 +1819,7 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
                       <TooltipContent>Redo (Ctrl+Y)</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs sm:text-sm text-muted-foreground hidden sm:inline">
                     Click on document to add {LOCAL_FIELD_TYPES.find(f => f.type === selectedFieldType)?.label}
                   </span>
                 </div>
@@ -1823,7 +1827,7 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
 
               {/* PDF Canvas with Pinch-to-Zoom */}
               <div
-                className="flex-1 overflow-auto p-6 flex justify-center"
+                className="flex-1 overflow-auto p-2 sm:p-6 flex justify-center"
                 {...touchHandlers}
                 style={pinchZoomStyles}
                 ref={editorRef}
@@ -2405,16 +2409,30 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
                   </div>
                 )}
               </div>
+              {/* Mobile bottom nav for fields step */}
+              <div className="lg:hidden flex items-center justify-between px-4 py-3 border-t bg-background gap-2">
+                <Button variant="outline" size="sm" onClick={() => setStep('recipients')} className="flex-1">
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-[hsl(var(--pearsign-primary))] hover:bg-[hsl(var(--pearsign-primary))]/90"
+                  onClick={() => setStep('review')}
+                  disabled={!canProceedFromFields}
+                >
+                  Continue <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Step 4: Review */}
         {step === 'review' && (
-          <div className="h-full flex">
+          <div className="h-full flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
             {/* Left Panel - Summary */}
-            <div className="w-96 border-r bg-card p-6 overflow-y-auto">
-              <h2 className="text-xl font-bold mb-6">Review & Send</h2>
+            <div className="w-full lg:w-96 border-b lg:border-b-0 lg:border-r bg-card p-4 sm:p-6 overflow-y-auto lg:max-h-full">
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Review & Send</h2>
 
               <div className="space-y-6">
                 {/* Document */}
@@ -2597,8 +2615,8 @@ export function DocumentPrepareFlow({ onClose, onSuccess, initialFile, initialCo
               </div>
             </div>
 
-            {/* Right Panel - Document Preview */}
-            <div className="flex-1 bg-muted/50 flex flex-col overflow-hidden">
+            {/* Right Panel - Document Preview (hidden on mobile, visible on desktop) */}
+            <div className="hidden lg:flex flex-1 bg-muted/50 flex-col overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 bg-background border-b">
                 <h3 className="font-medium">Document Preview</h3>
                 <div className="flex items-center gap-2">

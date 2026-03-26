@@ -39,14 +39,17 @@ async function verifyStripeSignature(
 
     if (!stripeSecretKey) {
       console.warn('[Stripe Webhook] No STRIPE_SECRET_KEY configured');
-      // In development without Stripe, parse directly
-      try {
-        const event = JSON.parse(body);
-        console.log('[Stripe Webhook] DEV MODE: Accepting event without signature verification');
-        return { valid: true, event };
-      } catch {
-        return { valid: false, error: 'Invalid JSON body' };
+      // Only skip signature verification in local development (never in production).
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const event = JSON.parse(body);
+          console.log('[Stripe Webhook] DEV MODE: Accepting event without signature verification');
+          return { valid: true, event };
+        } catch {
+          return { valid: false, error: 'Invalid JSON body' };
+        }
       }
+      return { valid: false, error: 'Stripe not configured' };
     }
 
     // Use Stripe SDK for proper signature verification
@@ -116,7 +119,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log('[Stripe Webhook] Received event:', event.type);
+  if (process.env.NODE_ENV !== 'production') console.log('[Stripe Webhook] Received event:', event.type);
 
   // Handle the event
   try {
@@ -129,7 +132,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log('[Stripe Webhook] Event processed successfully:', event.type);
+  if (process.env.NODE_ENV !== 'production') console.log('[Stripe Webhook] Event processed successfully:', event.type);
   return NextResponse.json({ received: true });
 }
 

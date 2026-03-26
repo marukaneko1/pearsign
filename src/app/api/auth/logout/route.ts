@@ -6,12 +6,27 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { endTenantSession } from '@/lib/tenant-session';
+import { endTenantSession, getTenantSessionContext } from '@/lib/tenant-session';
+import { logSystemEvent } from '@/lib/audit-log';
 
 export async function POST(request: NextRequest) {
   try {
+    // Capture session identity before destroying it
+    const ctx = await getTenantSessionContext().catch(() => null);
+
     // End the tenant session
     await endTenantSession();
+
+    // Fire audit event (non-blocking)
+    if (ctx?.session) {
+      logSystemEvent('system.logout', {
+        orgId: ctx.session.tenantId,
+        userId: ctx.session.userId,
+        actorId: ctx.session.userId,
+        actorEmail: ctx.session.userEmail,
+        actorName: ctx.session.userEmail,
+      });
+    }
 
     // Clear any auth cookies
     const response = NextResponse.json({

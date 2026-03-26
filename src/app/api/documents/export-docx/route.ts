@@ -6,8 +6,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { textToDocx } from "@/lib/text-to-docx";
+import { withTenant } from "@/lib/tenant-middleware";
 
-export async function POST(request: NextRequest) {
+export const POST = withTenant(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { content, title, author } = body;
@@ -40,4 +41,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -11,7 +11,7 @@ export const GET = withTenant(async (
   ctx: TenantApiContext,
   params: { id: string }
 ) => {
-  const { id } = await (params as any);
+  const { id } = params;
 
   const notification = await NotificationService.getById(id, ctx.tenantId);
 
@@ -37,7 +37,7 @@ export const PATCH = withTenant(async (
   ctx: TenantApiContext,
   params: { id: string }
 ) => {
-  const { id } = await (params as any);
+  const { id } = params;
   const body = await request.json();
   const { action = 'read' } = body;
 

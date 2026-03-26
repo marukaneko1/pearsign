@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter, Dancing_Script, Great_Vibes, Caveat, Permanent_Marker } from "next/font/google";
 import "./globals.css";
 import ClientBody from "./ClientBody";
-import Script from "next/script";
 
 export const dynamic = 'force-dynamic';
 
@@ -60,15 +59,18 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-title" content="PearSign" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="icon" type="image/png" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)" />
-        <Script
-          crossOrigin="anonymous"
-          src="//unpkg.com/same-runtime/dist/index.global.js"
-        />
       </head>
       <body suppressHydrationWarning className="antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          Skip to main content
+        </a>
         <ClientBody>{children}</ClientBody>
       </body>
     </html>

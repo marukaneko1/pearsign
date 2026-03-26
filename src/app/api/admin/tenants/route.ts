@@ -186,7 +186,7 @@ export async function PUT(request: NextRequest) {
           WHERE id = ${tenantId}
         `;
 
-        console.log('[AdminTenants] Changed plan for', tenantId, 'to', newPlan);
+        if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] Changed plan for', tenantId, 'to', newPlan);
         return NextResponse.json({
           success: true,
           message: `Plan changed to ${newPlan}`,
@@ -208,7 +208,7 @@ export async function PUT(request: NextRequest) {
           WHERE id = ${tenantId}
         `;
 
-        console.log('[AdminTenants] Changed status for', tenantId, 'to', newStatus);
+        if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] Changed status for', tenantId, 'to', newStatus);
         return NextResponse.json({
           success: true,
           message: `Status changed to ${newStatus}`,
@@ -242,7 +242,7 @@ export async function PUT(request: NextRequest) {
           WHERE id = ${tenantId}
         `;
 
-        console.log('[AdminTenants] Set custom limits for', tenantId, limits);
+        if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] Set custom limits for', tenantId, limits);
         return NextResponse.json({
           success: true,
           message: 'Custom limits applied',
@@ -260,7 +260,7 @@ export async function PUT(request: NextRequest) {
           WHERE id = ${tenantId}
         `;
 
-        console.log('[AdminTenants] Cleared custom limits for', tenantId);
+        if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] Cleared custom limits for', tenantId);
         return NextResponse.json({
           success: true,
           message: 'Custom limits cleared - using plan defaults',
@@ -295,7 +295,7 @@ export async function PUT(request: NextRequest) {
           WHERE id = ${tenantId}
         `;
 
-        console.log('[AdminTenants] Extended trial for', tenantId, 'by', days, 'days');
+        if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] Extended trial for', tenantId, 'by', days, 'days');
         return NextResponse.json({
           success: true,
           message: `Trial extended by ${days} days`,
@@ -315,7 +315,7 @@ export async function PUT(request: NextRequest) {
             AND period_start = ${periodStart.toISOString().split('T')[0]}
         `;
 
-        console.log('[AdminTenants] Reset usage for', tenantId);
+        if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] Reset usage for', tenantId);
         return NextResponse.json({
           success: true,
           message: 'Usage counters reset for current period',
@@ -377,12 +377,12 @@ export async function DELETE(request: NextRequest) {
     await sql`DELETE FROM tenants WHERE id = ${tenantId}`;
 
     // Also delete their data from other tables
-    await sql`DELETE FROM envelope_documents WHERE org_id = ${tenantId}`.catch(() => {});
-    await sql`DELETE FROM envelope_signing_sessions WHERE org_id = ${tenantId}`.catch(() => {});
-    await sql`DELETE FROM templates WHERE org_id = ${tenantId}`.catch(() => {});
-    await sql`DELETE FROM audit_logs WHERE org_id = ${tenantId}`.catch(() => {});
+    await sql`DELETE FROM envelope_documents WHERE org_id = ${tenantId}`.catch(err => console.warn('[AdminTenants] Delete envelope_documents failed:', err));
+    await sql`DELETE FROM envelope_signing_sessions WHERE org_id = ${tenantId}`.catch(err => console.warn('[AdminTenants] Delete signing_sessions failed:', err));
+    await sql`DELETE FROM templates WHERE org_id = ${tenantId}`.catch(err => console.warn('[AdminTenants] Delete templates failed:', err));
+    await sql`DELETE FROM audit_logs WHERE org_id = ${tenantId}`.catch(err => console.warn('[AdminTenants] Delete audit_logs failed:', err));
 
-    console.log('[AdminTenants] DELETED tenant and all data:', tenantId);
+    if (process.env.NODE_ENV !== 'production') console.log('[AdminTenants] DELETED tenant and all data:', tenantId);
 
     return NextResponse.json({
       success: true,

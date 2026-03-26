@@ -64,26 +64,26 @@ export async function POST(request: NextRequest) {
 
     // Task 1: Check usage warnings for all tenants
     if (tasks.includes('usageWarnings')) {
-      console.log('[Billing Cron] Starting usage warning checks...');
+      if (process.env.NODE_ENV !== 'production') console.log('[Billing Cron] Starting usage warning checks...');
       const usageResult = await runUsageWarningChecks();
       results.tasks = { ...results.tasks as Record<string, unknown>, usageWarnings: usageResult };
     }
 
     // Task 2: Send trial ending reminders
     if (tasks.includes('trialReminders')) {
-      console.log('[Billing Cron] Starting trial ending checks...');
+      if (process.env.NODE_ENV !== 'production') console.log('[Billing Cron] Starting trial ending checks...');
       const trialResult = await runTrialEndingChecks();
       results.tasks = { ...results.tasks as Record<string, unknown>, trialReminders: trialResult };
     }
 
     // Task 3: Report usage to Stripe
     if (tasks.includes('reportUsage')) {
-      console.log('[Billing Cron] Starting Stripe usage reporting...');
+      if (process.env.NODE_ENV !== 'production') console.log('[Billing Cron] Starting Stripe usage reporting...');
       const stripeResult = await runStripeUsageReporting();
       results.tasks = { ...results.tasks as Record<string, unknown>, reportUsage: stripeResult };
     }
 
-    console.log('[Billing Cron] All tasks completed:', results);
+    if (process.env.NODE_ENV !== 'production') console.log('[Billing Cron] All tasks completed:', results);
     return NextResponse.json({ success: true, ...results });
   } catch (error) {
     console.error('[Billing Cron] Error:', error);

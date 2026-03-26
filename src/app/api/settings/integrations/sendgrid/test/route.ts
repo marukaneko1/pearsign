@@ -29,7 +29,7 @@ export const POST = withTenant(
       // Use toEmail if provided, otherwise send to fromEmail
       const recipientEmail = toEmail || fromEmail;
 
-      console.log(`[SendGrid Test] Sending test email from ${fromEmail} to ${recipientEmail}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[SendGrid Test] Sending test email from ${fromEmail} to ${recipientEmail}`);
 
       // Send a test email using the provided credentials
       const testEmailHtml = `

@@ -1,15 +1,16 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Upload, FileText, ArrowRight, Send, CheckCircle2, PenLine } from "lucide-react";
+import { Upload, FileText, ArrowRight, Send, CheckCircle2, PenLine, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface QuickActionsProps {
   onSendDocument?: (file?: File) => void;
   onUploadAndSign?: (file?: File) => void;
   onUseTemplate?: () => void;
+  onOpenAIWizard?: () => void;
 }
 
-export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }: QuickActionsProps) {
+export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate, onOpenAIWizard }: QuickActionsProps) {
   const [greeting, setGreeting] = useState("Hello");
   const [isDraggingSend, setIsDraggingSend] = useState(false);
   const [isDraggingSign, setIsDraggingSign] = useState(false);
@@ -131,8 +132,8 @@ export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }:
 
       {/* Uploaded file indicator */}
       {uploadedFileName && (
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-sm border border-green-200 dark:border-green-800">
-          <CheckCircle2 className="h-4 w-4" />
+        <div role="status" aria-live="polite" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-sm border border-green-200 dark:border-green-800">
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
           <span className="font-medium">{uploadedFileName}</span>
           <span className="text-green-600 dark:text-green-500">uploaded</span>
         </div>
@@ -143,6 +144,9 @@ export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }:
         {/* Send Document Card */}
         <div
           data-tour="send-document"
+          role="button"
+          tabIndex={0}
+          aria-label="Send a document for signature — click or drag and drop a file"
           className={cn(
             "group relative rounded-md border bg-card p-5 transition-all cursor-pointer",
             isDraggingSend
@@ -154,12 +158,14 @@ export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }:
           onDragOver={handleDragOverSend}
           onDrop={handleDropSend}
           onClick={() => document.getElementById('file-upload-send')?.click()}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('file-upload-send')?.click(); } }}
         >
           <input
             type="file"
             id="file-upload-send"
             className="sr-only"
             accept=".pdf,.doc,.docx"
+            aria-label="Upload file to send for signature"
             onChange={handleFileSelectSend}
           />
 
@@ -191,6 +197,9 @@ export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }:
         {/* Upload & Sign Card */}
         <div
           data-tour="sign-yourself"
+          role="button"
+          tabIndex={0}
+          aria-label="Sign a document yourself — click or drag and drop a file"
           className={cn(
             "group relative rounded-md border bg-card p-5 transition-all cursor-pointer",
             isDraggingSign
@@ -202,12 +211,14 @@ export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }:
           onDragOver={handleDragOverSign}
           onDrop={handleDropSign}
           onClick={() => document.getElementById('file-upload-sign')?.click()}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('file-upload-sign')?.click(); } }}
         >
           <input
             type="file"
             id="file-upload-sign"
             className="sr-only"
             accept=".pdf,.doc,.docx"
+            aria-label="Upload file to sign yourself"
             onChange={handleFileSelectSign}
           />
 
@@ -253,6 +264,25 @@ export function QuickActions({ onSendDocument, onUploadAndSign, onUseTemplate }:
             <ArrowRight className="h-5 w-5 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
           </div>
         </button>
+
+        {/* AI Document Wizard Card */}
+        {onOpenAIWizard && (
+          <button
+            onClick={onOpenAIWizard}
+            className="group relative rounded-md border border-border/60 bg-card p-5 text-left transition-all hover:border-border hover:shadow-sm"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-lg bg-amber-500/10 dark:bg-amber-500/15 flex items-center justify-center shrink-0">
+                <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-foreground mb-0.5">AI document</h3>
+                <p className="text-sm text-muted-foreground">Generate with AI</p>
+              </div>
+              <ArrowRight className="h-5 w-5 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+            </div>
+          </button>
+        )}
       </div>
 
     </div>

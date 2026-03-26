@@ -976,7 +976,7 @@ const envelopeId = await sendContract(
   }
 );
 
-console.log(\`Envelope sent: \${envelopeId}\`);`} language="javascript" />
+if (process.env.NODE_ENV !== 'production') console.log(\`Envelope sent: \${envelopeId}\`);`} language="javascript" />
             </CardContent>
           </Card>
 

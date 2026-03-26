@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
             updated_at = NOW()
         WHERE id = ${authUserId}
       `;
-      console.log('[Join] Updated existing auth user:', authUserId);
+      if (process.env.NODE_ENV !== 'production') console.log('[Join] Updated existing auth user:', authUserId);
     } else {
       const registerResult = await AuthService.register({
         email,
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       await sql`
         UPDATE auth_users SET email_verified = true WHERE id = ${authUserId}
       `;
-      console.log('[Join] Created new auth user:', authUserId);
+      if (process.env.NODE_ENV !== 'production') console.log('[Join] Created new auth user:', authUserId);
     }
 
     const tuId = `tu_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
       WHERE id = ${invite.id}
     `;
 
-    console.log('[Join] Team member joined successfully:', email, 'org:', tenantId);
+    if (process.env.NODE_ENV !== 'production') console.log('[Join] Team member joined successfully:', email, 'org:', tenantId);
 
     return NextResponse.json({
       success: true,

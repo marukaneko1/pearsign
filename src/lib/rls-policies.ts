@@ -33,7 +33,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
   const tablesProtected: string[] = [];
   const errors: string[] = [];
 
-  console.log('[RLS] Starting Row Level Security initialization...');
+  if (process.env.NODE_ENV !== 'production') console.log('[RLS] Starting Row Level Security initialization...');
 
   // Define tables and their tenant column
   const tablesToProtect: Array<{ table: string; tenantColumn: string }> = [
@@ -73,7 +73,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
       END;
       $$ LANGUAGE plpgsql STABLE;
     `;
-    console.log('[RLS] Created current_tenant_id() function');
+    if (process.env.NODE_ENV !== 'production') console.log('[RLS] Created current_tenant_id() function');
   } catch (error) {
     const errMsg = `Failed to create current_tenant_id function: ${error}`;
     console.error('[RLS]', errMsg);
@@ -93,7 +93,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
       END;
       $$ LANGUAGE plpgsql STABLE;
     `;
-    console.log('[RLS] Created is_rls_bypassed() function');
+    if (process.env.NODE_ENV !== 'production') console.log('[RLS] Created is_rls_bypassed() function');
   } catch (error) {
     const errMsg = `Failed to create is_rls_bypassed function: ${error}`;
     console.error('[RLS]', errMsg);
@@ -113,7 +113,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
       `;
 
       if (!tableExists[0]?.exists) {
-        console.log(`[RLS] Table ${table} does not exist, skipping`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[RLS] Table ${table} does not exist, skipping`);
         continue;
       }
 
@@ -128,7 +128,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
       `;
 
       if (!columnExists[0]?.exists) {
-        console.log(`[RLS] Column ${tenantColumn} does not exist in ${table}, skipping`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[RLS] Column ${tenantColumn} does not exist in ${table}, skipping`);
         continue;
       }
 
@@ -189,7 +189,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
       `);
 
       tablesProtected.push(table);
-      console.log(`[RLS] ✅ Protected table: ${table} (column: ${tenantColumn})`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[RLS] ✅ Protected table: ${table} (column: ${tenantColumn})`);
 
     } catch (error) {
       const errMsg = `Failed to protect table ${table}: ${error}`;
@@ -198,7 +198,7 @@ export async function initializeRLS(): Promise<{ success: boolean; tablesProtect
     }
   }
 
-  console.log(`[RLS] Initialization complete. Protected ${tablesProtected.length} tables.`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[RLS] Initialization complete. Protected ${tablesProtected.length} tables.`);
 
   return {
     success: errors.length === 0,
@@ -224,7 +224,7 @@ export async function setTenantContext(tenantId: string): Promise<void> {
 
   try {
     await sql.raw(`SET LOCAL app.current_tenant_id = '${tenantId.replace(/'/g, "''")}'`);
-    console.log(`[RLS] Tenant context set to: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[RLS] Tenant context set to: ${tenantId}`);
   } catch (error) {
     console.error('[RLS] Failed to set tenant context:', error);
     throw new Error('Failed to set tenant security context');
@@ -249,7 +249,7 @@ export async function clearTenantContext(): Promise<void> {
 export async function bypassRLS(): Promise<void> {
   try {
     await sql`SET LOCAL app.bypass_rls = 'true'`;
-    console.log('[RLS] ⚠️ RLS bypass enabled for this transaction');
+    if (process.env.NODE_ENV !== 'production') console.log('[RLS] ⚠️ RLS bypass enabled for this transaction');
   } catch (error) {
     console.error('[RLS] Failed to enable RLS bypass:', error);
   }
@@ -346,7 +346,7 @@ export async function disableRLS(): Promise<void> {
   for (const table of tables) {
     try {
       await sql.raw(`ALTER TABLE ${table} DISABLE ROW LEVEL SECURITY`);
-      console.log(`[RLS] Disabled RLS on ${table}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[RLS] Disabled RLS on ${table}`);
     } catch {
       // Table may not exist
     }

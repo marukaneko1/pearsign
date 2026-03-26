@@ -4,14 +4,23 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { FusionFormsService, SubmissionStatus } from "@/lib/fusion-forms";
+import { withTenant, type TenantApiContext } from "@/lib/tenant-middleware";
 
 interface RouteParams {
-  params: Promise<{ id: string }>;
+  id: string;
 }
 
-export async function GET(request: NextRequest, context: RouteParams) {
+export const GET = withTenant<RouteParams>(async (
+  request: NextRequest,
+  { tenantId }: TenantApiContext,
+  params?: RouteParams
+) => {
   try {
-    const { id } = await context.params;
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: "Form ID required" }, { status: 400 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status") as SubmissionStatus | null;
     const limit = parseInt(searchParams.get("limit") || "50", 10);
@@ -21,6 +30,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
       limit,
       offset,
       status: status || undefined,
+      tenantId,
     });
 
     return NextResponse.json(result);
@@ -31,4 +41,4 @@ export async function GET(request: NextRequest, context: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

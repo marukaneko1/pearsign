@@ -463,8 +463,38 @@ export interface ApiAuditLog {
   createdAt: string;
 }
 
+let auditTableInitialized = false;
+async function ensureAuditLogsTable() {
+  if (auditTableInitialized) return;
+  await sql`
+    CREATE TABLE IF NOT EXISTS api_audit_logs (
+      id VARCHAR(255) PRIMARY KEY,
+      api_key_id VARCHAR(255),
+      organization_id VARCHAR(255) NOT NULL,
+      endpoint TEXT NOT NULL,
+      method VARCHAR(10) NOT NULL,
+      status_code INTEGER NOT NULL,
+      ip VARCHAR(100),
+      user_agent TEXT,
+      request_body JSONB,
+      response_time INTEGER,
+      error_message TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_api_audit_logs_org_id ON api_audit_logs(organization_id)
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_api_audit_logs_created_at ON api_audit_logs(created_at DESC)
+  `;
+  auditTableInitialized = true;
+}
+
 export const ApiAuditLogService = {
   async log(entry: Omit<ApiAuditLog, "id" | "createdAt">): Promise<void> {
+    await ensureAuditLogsTable().catch(() => {});
+
     const id = `apilog-${Date.now()}-${generateSecureToken(4)}`;
     const now = new Date().toISOString();
 
@@ -531,6 +561,8 @@ export const ApiAuditLogService = {
     if (!orgId) {
       throw new Error('orgId is required');
     }
+
+    await ensureAuditLogsTable().catch(() => {});
 
     // Build dynamic query based on filters
     let query = `
@@ -608,6 +640,8 @@ export const ApiAuditLogService = {
     if (!orgId) {
       throw new Error('orgId is required');
     }
+
+    await ensureAuditLogsTable().catch(() => {});
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);

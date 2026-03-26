@@ -195,7 +195,7 @@ export async function initializeAuthTables(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token)
   `;
 
-  console.log('[AuthService] Tables initialized');
+  if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Tables initialized');
 }
 
 // ============== AUTH SERVICE ==============
@@ -255,7 +255,7 @@ export const AuthService = {
 
     const user = mapUserFromDb(result[0]);
 
-    console.log('[AuthService] User registered:', data.email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthService] User registered:', data.email);
 
     return {
       user,
@@ -321,7 +321,7 @@ export const AuthService = {
         role: membership.role as UserRole,
       };
 
-      console.log('[AuthService] Found tenant membership:', {
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Found tenant membership:', {
         tenantId: tenant.id,
         tenantName: tenant.name,
         role: tenant.role,
@@ -338,7 +338,7 @@ export const AuthService = {
           userName: `${user.firstName} ${user.lastName}`.trim(),
           role: tenant.role,
         });
-        console.log('[AuthService] Created tenant session for:', user.email);
+        if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Created tenant session for:', user.email);
       } catch (sessionError) {
         console.error('[AuthService] Failed to create tenant session:', sessionError);
         throw new Error(`Failed to create session: ${sessionError instanceof Error ? sessionError.message : 'Unknown error'}`);
@@ -346,7 +346,7 @@ export const AuthService = {
     } else {
       // CRITICAL: User has no tenant - create one for them (legacy user fix)
       // This ensures every user has their own isolated workspace
-      console.log('[AuthService] User has no tenant, creating one:', user.email);
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthService] User has no tenant, creating one:', user.email);
 
       const { TenantService, ROLE_PERMISSIONS } = await import('./tenant');
 
@@ -385,10 +385,10 @@ export const AuthService = {
         role: 'owner',
       });
 
-      console.log('[AuthService] Created tenant for legacy user:', user.email, '->', newTenant.name);
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Created tenant for legacy user:', user.email, '->', newTenant.name);
     }
 
-    console.log('[AuthService] User logged in:', email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthService] User logged in:', email);
 
     return {
       success: true,
@@ -434,7 +434,7 @@ export const AuthService = {
       WHERE id = ${user.id}
     `;
 
-    console.log('[AuthService] Email verified:', user.email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Email verified:', user.email);
 
     return { success: true };
   },
@@ -471,7 +471,7 @@ export const AuthService = {
       WHERE id = ${user.id}
     `;
 
-    console.log('[AuthService] Verification email resent:', email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Verification email resent:', email);
 
     return { success: true, token: verificationToken };
   },
@@ -510,7 +510,7 @@ export const AuthService = {
       VALUES (${tokenId}, ${user.id}, ${token}, ${expiresAt})
     `;
 
-    console.log('[AuthService] Password reset requested:', email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Password reset requested:', email);
 
     return {
       success: true,
@@ -598,7 +598,7 @@ export const AuthService = {
       WHERE id = ${tokenData.id}
     `;
 
-    console.log('[AuthService] Password reset completed:', tokenData.email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthService] Password reset completed:', tokenData.email);
 
     return { success: true };
   },

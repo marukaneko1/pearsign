@@ -18,7 +18,7 @@ import { ensureBrandingConfig, DEFAULT_BRANDING } from '@/lib/tenant-config-init
 export const GET = withTenant(
   async (request: NextRequest, { tenantId }: TenantApiContext) => {
     try {
-      console.log(`[Branding Init API] GET status for tenant: ${tenantId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Branding Init API] GET status for tenant: ${tenantId}`);
 
       // Check and initialize if needed
       const config = await ensureBrandingConfig(tenantId);
@@ -51,12 +51,12 @@ export const GET = withTenant(
 export const POST = withTenant(
   async (request: NextRequest, { tenantId }: TenantApiContext) => {
     try {
-      console.log(`[Branding Init API] POST init for tenant: ${tenantId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Branding Init API] POST init for tenant: ${tenantId}`);
 
       // Use the idempotent helper
       const config = await ensureBrandingConfig(tenantId);
 
-      console.log(`[Branding Init API] Initialized branding for tenant: ${tenantId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Branding Init API] Initialized branding for tenant: ${tenantId}`);
 
       return NextResponse.json({
         success: true,

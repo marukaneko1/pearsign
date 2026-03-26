@@ -443,7 +443,7 @@ export default function PrivacyPolicyPage() {
                     <p className="text-sm text-gray-700 dark:text-gray-300">
                       If you are a California resident, you have additional rights under the California Consumer
                       Privacy Act (CCPA). Please see our{" "}
-                      <a href="#" className="text-[#2464ea] hover:underline">California Privacy Notice</a>{" "}
+                      <a href="/privacy#california" className="text-[#2464ea] hover:underline">California Privacy Notice</a>{" "}
                       for more information.
                     </p>
                   </div>

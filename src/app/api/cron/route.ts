@@ -45,12 +45,6 @@ function isCronAuthenticated(request: NextRequest): boolean {
     return true;
   }
 
-  // Check Vercel cron header (Vercel sets this automatically)
-  const vercelCron = request.headers.get("x-vercel-cron");
-  if (vercelCron === "true" && process.env.VERCEL) {
-    return true;
-  }
-
   return false;
 }
 
@@ -261,7 +255,7 @@ async function runRetentionTask(): Promise<TaskResult> {
         deleted++;
 
         // Log the deletion
-        console.log(`[Cron] Retention: Deleted document ${doc.envelope_id} for tenant ${doc.org_id}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Cron] Retention: Deleted document ${doc.envelope_id} for tenant ${doc.org_id}`);
       } catch (delErr) {
         console.error(`[Cron] Failed to delete document ${doc.id}:`, delErr);
       }
@@ -402,7 +396,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const startTime = Date.now();
-    console.log("[Cron] Starting scheduled tasks...");
+    if (process.env.NODE_ENV !== 'production') console.log("[Cron] Starting scheduled tasks...");
 
     // Parse which tasks to run
     const { searchParams } = new URL(request.url);
@@ -415,24 +409,24 @@ export async function POST(request: NextRequest) {
 
     // Run selected tasks
     if (tasksToRun.includes("reminders")) {
-      console.log("[Cron] Running reminders task...");
+      if (process.env.NODE_ENV !== 'production') console.log("[Cron] Running reminders task...");
       results.push(await runReminderTask());
     }
 
     if (tasksToRun.includes("retention")) {
-      console.log("[Cron] Running retention task...");
+      if (process.env.NODE_ENV !== 'production') console.log("[Cron] Running retention task...");
       results.push(await runRetentionTask());
     }
 
     if (tasksToRun.includes("billing")) {
-      console.log("[Cron] Running billing task...");
+      if (process.env.NODE_ENV !== 'production') console.log("[Cron] Running billing task...");
       results.push(await runBillingTask());
     }
 
     const totalDuration = Date.now() - startTime;
     const allSuccessful = results.every((r) => r.success);
 
-    console.log(`[Cron] Completed in ${totalDuration}ms, success: ${allSuccessful}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Cron] Completed in ${totalDuration}ms, success: ${allSuccessful}`);
 
     return NextResponse.json({
       success: allSuccessful,

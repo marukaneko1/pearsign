@@ -5,11 +5,13 @@ export async function register() {
     async function runRaw(query: string) {
       try {
         await sql.raw(query);
-      } catch {}
+      } catch (err) {
+        console.warn('[AutoBootstrap] Migration step failed (may already exist):', err instanceof Error ? err.message : err);
+      }
     }
 
     try {
-      console.log('[AutoBootstrap] Starting database setup...');
+      if (process.env.NODE_ENV !== 'production') console.log('[AutoBootstrap] Starting database setup...');
 
       const { initializeAuthTables } = await import('./lib/auth-service');
       const { TenantService } = await import('./lib/tenant');
@@ -20,7 +22,9 @@ export async function register() {
       try {
         const { initializeAdminTables } = await import('./lib/admin-tenant-service');
         await initializeAdminTables();
-      } catch {}
+      } catch (err) {
+        console.warn('[AutoBootstrap] Admin table initialization failed:', err instanceof Error ? err.message : err);
+      }
 
       await sql`
         CREATE TABLE IF NOT EXISTS platform_plans (
@@ -51,7 +55,7 @@ export async function register() {
       await runRaw(`ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS price_monthly DECIMAL(10,2) DEFAULT 0`);
       await runRaw(`ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS price_yearly DECIMAL(10,2) DEFAULT 0`);
 
-      console.log('[AutoBootstrap] Platform plans table ready');
+      if (process.env.NODE_ENV !== 'production') console.log('[AutoBootstrap] Platform plans table ready');
 
       const planCount = await sql`SELECT COUNT(*) as count FROM platform_plans`;
       if (parseInt(planCount[0].count) === 0) {
@@ -68,7 +72,7 @@ export async function register() {
             ON CONFLICT (id) DO NOTHING
           `;
         }
-        console.log('[AutoBootstrap] Seeded default plans');
+        if (process.env.NODE_ENV !== 'production') console.log('[AutoBootstrap] Seeded default plans');
       }
 
       await sql`
@@ -118,6 +122,116 @@ export async function register() {
         )
       `;
 
+      // ── Audit log table ────────────────────────────────────────────────────
+      await sql`
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          org_id VARCHAR(255) NOT NULL,
+          user_id VARCHAR(255),
+          action VARCHAR(100) NOT NULL,
+          entity_type VARCHAR(50),
+          entity_id VARCHAR(255),
+          actor_id VARCHAR(255),
+          actor_name VARCHAR(255),
+          actor_email VARCHAR(255),
+          details JSONB DEFAULT '{}',
+          ip_address VARCHAR(100),
+          user_agent TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_org_id ON audit_logs(org_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_org_ts  ON audit_logs(org_id, created_at DESC)`;
+
+      // ── Backfill: seed audit events from existing envelope data ───────────
+      // Only runs if the table is empty (no audit logs exist yet).
+      try {
+        const auditCount = await sql`SELECT COUNT(*) AS c FROM audit_logs`;
+        const isEmpty = parseInt((auditCount[0] as Record<string, string>).c ?? '0', 10) === 0;
+
+        if (isEmpty) {
+          // envelope_documents is the canonical envelope store
+          const docs = await sql`
+            SELECT envelope_id, org_id, title, created_at
+            FROM envelope_documents
+            ORDER BY created_at ASC
+          `.catch(() => []);
+
+          for (const doc of docs) {
+            const orgId     = doc.org_id      as string;
+            const envId     = doc.envelope_id as string;
+            const title     = doc.title        as string;
+            const createdAt = doc.created_at   as Date;
+            const details   = JSON.stringify({ envelopeTitle: title });
+
+            // envelope.created
+            await sql`
+              INSERT INTO audit_logs (org_id, action, entity_type, entity_id, details, created_at)
+              VALUES (${orgId}, 'envelope.created', 'ENVELOPE', ${envId}, ${details}, ${createdAt})
+            `.catch(() => {});
+
+            // signing sessions tell us if it was sent / viewed / signed
+            const sessions = await sql`
+              SELECT status, recipient_name, recipient_email, signed_at, viewed_at
+              FROM envelope_signing_sessions
+              WHERE envelope_id = ${envId}
+            `.catch(() => []);
+
+            if (sessions.length > 0) {
+              // envelope.sent
+              await sql`
+                INSERT INTO audit_logs (org_id, action, entity_type, entity_id, actor_name, actor_email, details, created_at)
+                VALUES (${orgId}, 'envelope.sent', 'ENVELOPE', ${envId},
+                        ${(sessions[0].recipient_name as string) || null},
+                        ${(sessions[0].recipient_email as string) || null},
+                        ${details}, ${createdAt})
+              `.catch(() => {});
+
+              for (const sess of sessions) {
+                if (sess.viewed_at) {
+                  await sql`
+                    INSERT INTO audit_logs (org_id, action, entity_type, entity_id, actor_name, actor_email, details, created_at)
+                    VALUES (${orgId}, 'envelope.viewed', 'ENVELOPE', ${envId},
+                            ${(sess.recipient_name as string) || null},
+                            ${(sess.recipient_email as string) || null},
+                            ${details}, ${sess.viewed_at})
+                  `.catch(() => {});
+                }
+                if (sess.status === 'completed' && sess.signed_at) {
+                  await sql`
+                    INSERT INTO audit_logs (org_id, action, entity_type, entity_id, actor_name, actor_email, details, created_at)
+                    VALUES (${orgId}, 'envelope.signed', 'ENVELOPE', ${envId},
+                            ${(sess.recipient_name as string) || null},
+                            ${(sess.recipient_email as string) || null},
+                            ${JSON.stringify({ envelopeTitle: title, signerName: sess.recipient_name, signerEmail: sess.recipient_email })},
+                            ${sess.signed_at})
+                  `.catch(() => {});
+                }
+              }
+
+              // envelope.completed if all signers signed
+              const allSigned = sessions.every((s: Record<string, unknown>) => s.status === 'completed');
+              if (allSigned) {
+                const lastSigned = sessions.reduce((latest: Date | null, s: Record<string, unknown>) => {
+                  const t = s.signed_at ? new Date(s.signed_at as string) : null;
+                  return t && (!latest || t > latest) ? t : latest;
+                }, null as Date | null);
+                await sql`
+                  INSERT INTO audit_logs (org_id, action, entity_type, entity_id, details, created_at)
+                  VALUES (${orgId}, 'envelope.completed', 'ENVELOPE', ${envId}, ${details}, ${lastSigned || createdAt})
+                `.catch(() => {});
+              }
+            }
+          }
+
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[AutoBootstrap] Audit backfill: ${docs.length} envelope(s) seeded`);
+          }
+        }
+      } catch (backfillErr) {
+        console.warn('[AutoBootstrap] Audit backfill failed (non-fatal):', backfillErr instanceof Error ? backfillErr.message : backfillErr);
+      }
+
       const adminEmail = 'admin@pearsign.com';
       const existing = await sql`SELECT id FROM auth_users WHERE email = ${adminEmail}`;
       if (existing.length === 0) {
@@ -135,19 +249,27 @@ export async function register() {
         await sql`INSERT INTO auth_users (id, email, password_hash, first_name, last_name, email_verified) VALUES (${userId}, ${adminEmail}, ${passwordHash}, 'Admin', 'User', true)`;
 
         const tenantId = `org_${Date.now()}_${Math.random().toString(36).substring(8)}`;
-        await sql`INSERT INTO tenants (id, name, plan, status, created_at) VALUES (${tenantId}, 'PearSign', 'professional', 'active', NOW()) ON CONFLICT (id) DO NOTHING`;
+        await sql`INSERT INTO tenants (id, name, slug, plan, status, created_at) VALUES (${tenantId}, 'PearSign', 'pearsign', 'professional', 'active', NOW()) ON CONFLICT (id) DO NOTHING`;
         await sql`INSERT INTO tenant_users (id, tenant_id, user_id, role, status, joined_at) VALUES (${`tu_${Date.now()}`}, ${tenantId}, ${userId}, 'owner', 'active', NOW()) ON CONFLICT DO NOTHING`;
 
-        console.log('[AutoBootstrap] Created admin user and tenant:', { userId, tenantId });
+        if (process.env.NODE_ENV !== 'production') console.log('[AutoBootstrap] Created admin user and tenant:', { userId, tenantId });
       } else {
-        const userId = (existing[0] as any).id;
+        const userId = (existing[0] as Record<string, unknown>).id as string;
         const tenantCheck = await sql`SELECT tenant_id FROM tenant_users WHERE user_id = ${userId} AND status = 'active' LIMIT 1`;
         if (tenantCheck.length > 0) {
           await sql`UPDATE tenants SET plan = 'professional' WHERE id = ${tenantCheck[0].tenant_id} AND plan NOT IN ('professional', 'enterprise')`;
         }
       }
 
-      console.log('[AutoBootstrap] Database setup complete');
+      // Billing tables (subscriptions, payment_methods, billing_invoices, usage_records)
+      try {
+        const { BillingService } = await import('./lib/billing-service');
+        await BillingService.initializeTables();
+      } catch (err) {
+        console.warn('[AutoBootstrap] Billing table initialization failed (non-fatal):', err instanceof Error ? err.message : err);
+      }
+
+      if (process.env.NODE_ENV !== 'production') console.log('[AutoBootstrap] Database setup complete');
     } catch (error) {
       console.error('[AutoBootstrap] Error during setup:', error);
     }

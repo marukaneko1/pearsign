@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       // User already has an auth account — reuse their ID
       userId = existingAuthUser[0].id;
       isExistingAuthUser = true;
-      console.log('[CreateTenant] Reusing existing auth user:', email, userId);
+      if (process.env.NODE_ENV !== 'production') console.log('[CreateTenant] Reusing existing auth user:', email, userId);
     } else {
       // Create new auth user with hashed password
       if (!password) {
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         });
         userId = authResult.userId;
         verificationToken = authResult.verificationToken;
-        console.log('[CreateTenant] Created auth user:', email, userId);
+        if (process.env.NODE_ENV !== 'production') console.log('[CreateTenant] Created auth user:', email, userId);
       } catch (authError: any) {
         return NextResponse.json(
           { success: false, error: authError.message || 'Failed to create user account' },
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
           textContent: `Hi ${firstName},\n\nYour organization ${organizationName} has been created. Verify your email: ${verifyUrl}`,
         });
         if (emailResult.success) {
-          console.log('[CreateTenant] Verification email sent to:', email);
+          if (process.env.NODE_ENV !== 'production') console.log('[CreateTenant] Verification email sent to:', email);
         } else {
           console.error('[CreateTenant] Verification email FAILED for:', email, emailResult.error);
         }
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the tenant
-    console.log(`[CreateTenant] Creating tenant: ${organizationName} (${tenantId})`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[CreateTenant] Creating tenant: ${organizationName} (${tenantId})`);
 
     await sql`
       INSERT INTO tenants (id, name, slug, plan, status, owner_id, settings, billing)
@@ -222,11 +222,11 @@ export async function POST(request: NextRequest) {
     // Also sync to legacy users table
     await sql`
       CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (email)
-    `.catch(() => {});
+    `.catch(err => console.warn('[TenantCreate] Failed to create email index (may already exist):', err));
 
     const existingUsers = await sql`
       SELECT id FROM users WHERE email = ${email}
-    `.catch(() => []);
+    `.catch(err => { console.error('[TenantCreate] Failed to check existing users:', err); return []; });
 
     if (existingUsers.length > 0) {
       await sql`
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
           logoUrl,
         });
       } catch (e) {
-        console.log('[CreateTenant] Branding setup skipped:', e);
+        if (process.env.NODE_ENV !== 'production') console.log('[CreateTenant] Branding setup skipped:', e);
       }
     }
 
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
         currentPeriodEnd: periodEnd.toISOString(),
       });
     } catch (e) {
-      console.log('[CreateTenant] Billing setup skipped:', e);
+      if (process.env.NODE_ENV !== 'production') console.log('[CreateTenant] Billing setup skipped:', e);
     }
 
     // Process team invites
@@ -340,10 +340,10 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (e) {
-      console.log('[CreateTenant] Audit log skipped:', e);
+      if (process.env.NODE_ENV !== 'production') console.log('[CreateTenant] Audit log skipped:', e);
     }
 
-    console.log(`[CreateTenant] Tenant created successfully: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[CreateTenant] Tenant created successfully: ${tenantId}`);
 
     return NextResponse.json({
       success: true,

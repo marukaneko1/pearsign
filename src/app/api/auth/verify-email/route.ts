@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
           textContent: `Verify your PearSign email\n\nThanks for signing up! Please verify your email address by visiting:\n\n${verifyUrl}`,
         });
 
-        console.log('[Auth/VerifyEmail] Verification email sent to:', email);
+        if (process.env.NODE_ENV !== 'production') console.log('[Auth/VerifyEmail] Verification email sent to:', email);
       } catch (emailError) {
         console.error('[Auth/VerifyEmail] Failed to send email:', emailError);
       }

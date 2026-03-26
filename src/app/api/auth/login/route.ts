@@ -20,6 +20,7 @@ import {
   getClientIP,
   getRateLimitHeaders,
 } from '@/lib/auth-rate-limiter';
+import { logSystemEvent } from '@/lib/audit-log';
 
 // Session cookie name - must match tenant-session.ts
 const TENANT_SESSION_COOKIE = 'pearsign_tenant_session';
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password } = body;
 
-    console.log('[Auth/Login] Login attempt for:', email);
+    if (process.env.NODE_ENV !== 'production') console.log('[Auth/Login] Login attempt for:', email);
 
     if (!email || !password) {
       return NextResponse.json(
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     const rateLimitResult = checkLoginRateLimit(clientIP, email);
 
     if (!rateLimitResult.allowed) {
-      console.log('[Auth/Login] Rate limited:', email, 'IP:', clientIP, 'Reason:', rateLimitResult.reason);
+      if (process.env.NODE_ENV !== 'production') console.log('[Auth/Login] Rate limited:', email, 'IP:', clientIP, 'Reason:', rateLimitResult.reason);
       return new NextResponse(
         JSON.stringify({
           success: false,
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Auth/Login] Login result:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[Auth/Login] Login result:', {
       success: result.success,
       hasUser: !!result.user,
       hasTenant: !!result.tenant,
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (!securityCheck.allowed) {
-          console.log('[Auth/Login] Security check failed:', securityCheck.reason);
+          if (process.env.NODE_ENV !== 'production') console.log('[Auth/Login] Security check failed:', securityCheck.reason);
 
           // Return specific error based on what's required
           if (securityCheck.requiresAction === 'enable_2fa') {
@@ -144,10 +145,25 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(TENANT_SESSION_COOKIE);
 
-    console.log('[Auth/Login] Session cookie check:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[Auth/Login] Session cookie check:', {
       found: !!sessionCookie?.value,
       cookieLength: sessionCookie?.value?.length || 0,
     });
+
+    // Fire audit event (non-blocking — never fail the login over a log write)
+    if (result.tenant?.id && result.user) {
+      logSystemEvent('system.login', {
+        orgId: result.tenant.id,
+        userId: result.user.id,
+        actorId: result.user.id,
+        actorName: (result.user.firstName && result.user.lastName)
+          ? `${result.user.firstName} ${result.user.lastName}`.trim()
+          : result.user.email,
+        actorEmail: result.user.email,
+        ipAddress: clientIP,
+        details: { email: result.user.email },
+      });
+    }
 
     // Create response with session info
     const response = NextResponse.json({
@@ -170,7 +186,7 @@ export async function POST(request: NextRequest) {
         expires: expiresAt,
       });
 
-      console.log('[Auth/Login] SUCCESS - Session cookie set on response:', sessionCookie.value.substring(0, 20) + '...');
+      if (process.env.NODE_ENV !== 'production') console.log('[Auth/Login] SUCCESS - Session cookie set on response:', sessionCookie.value.substring(0, 20) + '...');
     } else {
       console.error('[Auth/Login] CRITICAL - No session cookie found after successful login! User:', email);
       // Still return success but log this issue

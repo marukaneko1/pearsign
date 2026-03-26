@@ -127,7 +127,7 @@ export const BillingNotificationService = {
       billingPortalUrl,
     });
 
-    console.log('[BillingNotifications] Invoice ready notification sent:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingNotifications] Invoice ready notification sent:', {
       orgId: data.orgId,
       invoiceNumber: data.invoiceNumber,
       success: result.success,
@@ -168,7 +168,7 @@ export const BillingNotificationService = {
       billingPortalUrl,
     });
 
-    console.log('[BillingNotifications] Payment received notification sent:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingNotifications] Payment received notification sent:', {
       orgId: data.orgId,
       invoiceNumber: data.invoiceNumber,
       success: result.success,
@@ -213,7 +213,7 @@ export const BillingNotificationService = {
       billingPortalUrl,
     });
 
-    console.log('[BillingNotifications] Payment failed notification sent:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingNotifications] Payment failed notification sent:', {
       orgId: data.orgId,
       invoiceNumber: data.invoiceNumber,
       success: result.success,
@@ -252,7 +252,7 @@ export const BillingNotificationService = {
       billingPortalUrl,
     });
 
-    console.log('[BillingNotifications] Subscription updated notification sent:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingNotifications] Subscription updated notification sent:', {
       orgId: data.orgId,
       previousPlan: data.previousPlan,
       newPlan: data.newPlan,
@@ -293,7 +293,7 @@ export const BillingNotificationService = {
       upgradeUrl,
     });
 
-    console.log('[BillingNotifications] Usage warning notification sent:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingNotifications] Usage warning notification sent:', {
       orgId: data.orgId,
       resourceType: data.resourceType,
       usagePercentage,
@@ -336,7 +336,7 @@ export const BillingNotificationService = {
       upgradeUrl,
     });
 
-    console.log('[BillingNotifications] Trial ending notification sent:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingNotifications] Trial ending notification sent:', {
       orgId: data.orgId,
       daysRemaining,
       success: result.success,
@@ -425,7 +425,7 @@ export const BillingNotificationService = {
         });
       }
 
-      console.log(`[BillingNotifications] Sent ${trialsEnding.length} trial ending notifications`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[BillingNotifications] Sent ${trialsEnding.length} trial ending notifications`);
     } catch (error) {
       console.error('[BillingNotifications] Error checking trial endings:', error);
     }

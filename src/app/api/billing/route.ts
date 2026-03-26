@@ -16,22 +16,27 @@ import { TenantLimitsService, TenantRateLimiter, TenantPricingService } from '@/
 export const GET = withTenant(
   async (request: NextRequest, { tenantId, context }: TenantApiContext) => {
     try {
-      // Get subscription info
-      const subscription = await BillingService.getSubscription(tenantId);
-
       // Get current plan details
       const planId = context.tenant.plan;
       const planDetails = SUBSCRIPTION_PLANS[planId] || SUBSCRIPTION_PLANS.free;
 
-      // Get limits and usage
-      const limits = await TenantLimitsService.getLimits(tenantId, planId);
-      const usage = await TenantRateLimiter.getOrCreateUsageCounter(tenantId);
-
-      // Get payment methods
-      const paymentMethods = await BillingService.getPaymentMethods(tenantId);
-
-      // Get recent invoices
-      const invoices = await BillingService.getInvoices(tenantId, 5);
+      // Fetch each piece of billing data independently so one missing table
+      // doesn't kill the whole response.
+      const subscription = await BillingService.getSubscription(tenantId).catch(() => null);
+      const limits = await TenantLimitsService.getLimits(tenantId, planId).catch(() => ({
+        orgId: tenantId, apiPerMinute: 0, apiPerDay: 0, apiPerMonth: 0,
+        envelopesPerMonth: 0, templatesMax: 0, teamMembersMax: 0,
+        webhooksPerDay: 0, smsPerMonth: 0, storageGb: 0,
+        customLimits: false, updatedAt: new Date().toISOString(),
+      }));
+      const usage = await TenantRateLimiter.getOrCreateUsageCounter(tenantId).catch(() => ({
+        orgId: tenantId, periodStart: '', periodEnd: '',
+        apiCalls: 0, apiCallsMinute: 0, apiCallsDay: 0,
+        envelopesSent: 0, webhooksSent: 0, smsSent: 0,
+        storageBytes: 0, lastMinuteReset: '', lastDayReset: '', updatedAt: '',
+      }));
+      const paymentMethods = await BillingService.getPaymentMethods(tenantId).catch(() => []);
+      const invoices = await BillingService.getInvoices(tenantId, 5).catch(() => []);
 
       // Calculate usage percentages
       const usagePercentages = {
@@ -125,6 +130,13 @@ export const POST = withTenant(
             );
           }
 
+          if (!process.env.STRIPE_SECRET_KEY) {
+            return NextResponse.json(
+              { error: 'Stripe billing is not configured for this installation.' },
+              { status: 503 }
+            );
+          }
+
           const checkoutUrl = await BillingService.createCheckoutSession(
             tenantId,
             plan,
@@ -137,18 +149,40 @@ export const POST = withTenant(
           });
         }
 
-        case 'createPortal': {
-          const portalUrl = await BillingService.createPortalSession(tenantId);
+        case 'createSetupSession': {
+          if (!process.env.STRIPE_SECRET_KEY) {
+            return NextResponse.json(
+              { error: 'Stripe billing is not configured for this installation.' },
+              { status: 503 }
+            );
+          }
 
-          return NextResponse.json({
-            success: true,
-            portalUrl,
-          });
+          const setupUrl = await BillingService.createSetupSession(tenantId);
+          return NextResponse.json({ success: true, setupUrl });
+        }
+
+        case 'createPortal': {
+          if (!process.env.STRIPE_SECRET_KEY) {
+            return NextResponse.json(
+              { error: 'Stripe billing is not configured for this installation.' },
+              { status: 503 }
+            );
+          }
+
+          const subscription = await BillingService.getSubscription(tenantId).catch(() => null);
+          if (!subscription?.stripeCustomerId) {
+            // No customer yet — fall back to setup session so the caller can redirect there
+            const setupUrl = await BillingService.createSetupSession(tenantId);
+            return NextResponse.json({ success: true, setupUrl });
+          }
+
+          const portalUrl = await BillingService.createPortalSession(tenantId);
+          return NextResponse.json({ success: true, portalUrl });
         }
 
         default:
           return NextResponse.json(
-            { error: 'Unknown action', validActions: ['createCheckout', 'createPortal'] },
+            { error: 'Unknown action', validActions: ['createCheckout', 'createPortal', 'createSetupSession'] },
             { status: 400 }
           );
       }

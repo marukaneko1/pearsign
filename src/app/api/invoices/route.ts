@@ -27,7 +27,7 @@ const EMPTY_RESULT = {
 
 export const POST = withTenant(async (request: NextRequest, { tenantId, context }: TenantApiContext) => {
   try {
-    console.log(`[Invoices API] POST create for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Invoices API] POST create for tenant: ${tenantId}`);
 
     const body = await request.json() as CreateInvoiceInput;
 
@@ -37,7 +37,7 @@ export const POST = withTenant(async (request: NextRequest, { tenantId, context 
       context.user?.id
     );
 
-    console.log(`[Invoices API] Created invoice: ${invoice.id} for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Invoices API] Created invoice: ${invoice.id} for tenant: ${tenantId}`);
     return NextResponse.json(invoice, { status: 201 });
   } catch (error) {
     console.error('[Invoices API] Create error:', error);
@@ -50,7 +50,7 @@ export const POST = withTenant(async (request: NextRequest, { tenantId, context 
 
 export const GET = withTenant(async (request: NextRequest, { tenantId }: TenantApiContext) => {
   try {
-    console.log(`[Invoices API] GET list for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Invoices API] GET list for tenant: ${tenantId}`);
 
     const { searchParams } = new URL(request.url);
 
@@ -104,7 +104,7 @@ export const GET = withTenant(async (request: NextRequest, { tenantId }: TenantA
   } catch (error) {
     console.error('[Invoices API] List error:', error);
     // Return empty result instead of 500 error
-    console.log(`[Invoices API] Returning empty result for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Invoices API] Returning empty result for tenant: ${tenantId}`);
     return NextResponse.json(EMPTY_RESULT);
   }
 });

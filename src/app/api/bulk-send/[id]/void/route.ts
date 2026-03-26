@@ -79,7 +79,7 @@ export const POST = withTenant<{ id: string }>(
       for (const envelopeId of envelopeIds) {
         // Check current status
         const envelopeResult = await sql`
-          SELECT id, status, name FROM envelopes WHERE id = ${envelopeId}::uuid AND organization_id = ${tenantId}
+          SELECT id, status, name FROM envelopes WHERE id = ${envelopeId} AND organization_id = ${tenantId}
         `;
 
         if (envelopeResult.length === 0) continue;
@@ -100,14 +100,14 @@ export const POST = withTenant<{ id: string }>(
         await sql`
           UPDATE envelopes
           SET status = 'voided', updated_at = NOW()
-          WHERE id = ${envelopeId}::uuid AND organization_id = ${tenantId}
+          WHERE id = ${envelopeId} AND organization_id = ${tenantId}
         `;
 
         // Update signing sessions to declined
         await sql`
-          UPDATE signing_sessions
+          UPDATE envelope_signing_sessions
           SET status = 'declined', updated_at = NOW()
-          WHERE envelope_id = ${envelopeId}::uuid
+          WHERE envelope_id = ${envelopeId}
           AND status NOT IN ('completed', 'declined')
         `;
 

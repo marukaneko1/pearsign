@@ -23,7 +23,7 @@ import {
 export const GET = withTenant(
   async (request: NextRequest, { tenantId, userId }: TenantApiContext) => {
     try {
-      console.log(`[Notification Preferences API] GET for tenant: ${tenantId}, user: ${userId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Notification Preferences API] GET for tenant: ${tenantId}, user: ${userId}`);
 
       // Ensure preferences exist (GET-or-CREATE)
       await ensureNotificationPreferences(tenantId, userId);
@@ -57,7 +57,7 @@ export const GET = withTenant(
 export const PATCH = withTenant(
   async (request: NextRequest, { tenantId, userId }: TenantApiContext) => {
     try {
-      console.log(`[Notification Preferences API] PATCH for tenant: ${tenantId}, user: ${userId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Notification Preferences API] PATCH for tenant: ${tenantId}, user: ${userId}`);
 
       // Ensure preferences exist before updating
       await ensureNotificationPreferences(tenantId, userId);
@@ -68,7 +68,7 @@ export const PATCH = withTenant(
 
       const updated = await NotificationPreferencesService.update(tenantId, userId, preferences);
 
-      console.log(`[Notification Preferences API] Updated preferences for user: ${userId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Notification Preferences API] Updated preferences for user: ${userId}`);
       return NextResponse.json({
         success: true,
         data: updated,

@@ -42,18 +42,23 @@ export function ModulesSettings() {
   const { toast } = useToast();
   const [modules, setModules] = useState<ModuleData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
 
   const loadModules = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const response = await fetch("/api/settings/modules");
       if (response.ok) {
         const data = await response.json();
         setModules(Array.isArray(data) ? data : []);
+      } else {
+        setLoadError('Failed to load module settings');
       }
     } catch (error) {
       console.error("Error loading modules:", error);
+      setLoadError('Could not connect to server');
       toast({ title: "Error loading modules", description: "Failed to load module settings", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -88,6 +93,17 @@ export function ModulesSettings() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center py-12 text-sm text-muted-foreground">
+        <p>{loadError}</p>
+        <Button variant="outline" size="sm" onClick={loadModules} className="mt-4">
+          Retry
+        </Button>
       </div>
     );
   }

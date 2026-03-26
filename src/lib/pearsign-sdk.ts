@@ -215,7 +215,7 @@ class HttpClient {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         if (this.debug) {
-          console.log(`[PearSign SDK] ${method} ${url} (attempt ${attempt})`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[PearSign SDK] ${method} ${url} (attempt ${attempt})`);
         }
 
         const controller = new AbortController();
@@ -250,7 +250,7 @@ class HttpClient {
         if (attempt < maxAttempts) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
           if (this.debug) {
-            console.log(`[PearSign SDK] Retrying in ${delay}ms...`);
+            if (process.env.NODE_ENV !== 'production') console.log(`[PearSign SDK] Retrying in ${delay}ms...`);
           }
           await sleep(delay);
         }

@@ -11,7 +11,8 @@ import type {
   PaymentLink,
   PaymentEvent,
 } from '../types';
-import { BasePaymentProcessor, generatePaymentToken } from './base-processor';
+import { BasePaymentProcessor } from './base-processor';
+import Stripe from 'stripe';
 
 export class StripeProcessor extends BasePaymentProcessor {
   type = 'stripe' as const;
@@ -29,40 +30,37 @@ export class StripeProcessor extends BasePaymentProcessor {
       throw new Error('Stripe secret key not configured');
     }
 
-    // In production, this would call Stripe API to create a Payment Link
-    // For now, we generate a redirect URL pattern
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const stripe = new Stripe(credentials.secret_key);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.pearsign.com';
     const returnUrl = `${baseUrl}/api/invoices/payment-callback?invoice_id=${invoice.id}`;
 
-    // Stripe Payment Link creation would look like:
-    // const stripe = new Stripe(credentials.secret_key);
-    // const paymentLink = await stripe.paymentLinks.create({
-    //   line_items: [{
-    //     price_data: {
-    //       currency: invoice.currency.toLowerCase(),
-    //       product_data: { name: `Invoice ${invoice.invoice_number}` },
-    //       unit_amount: Math.round(invoice.total * 100),
-    //     },
-    //     quantity: 1,
-    //   }],
-    //   after_completion: {
-    //     type: 'redirect',
-    //     redirect: { url: returnUrl },
-    //   },
-    //   metadata: {
-    //     invoice_id: invoice.id,
-    //     tenant_id: invoice.tenant_id,
-    //   },
-    // });
-
-    // For demo, generate a placeholder URL
-    const token = generatePaymentToken(invoice.id, invoice.total, invoice.tenant_id);
-    const paymentUrl = `https://checkout.stripe.com/pay/demo?token=${token}&amount=${invoice.total}&currency=${invoice.currency}`;
+    const paymentLink = await stripe.paymentLinks.create({
+      line_items: [{
+        price_data: {
+          currency: (invoice.currency || 'USD').toLowerCase(),
+          product_data: {
+            name: `Invoice ${invoice.invoice_number}`,
+            description: `Payment for ${invoice.customer_name}`,
+          },
+          unit_amount: Math.round((invoice.total - invoice.amount_paid) * 100),
+        },
+        quantity: 1,
+      }],
+      after_completion: {
+        type: 'redirect',
+        redirect: { url: returnUrl },
+      },
+      metadata: {
+        invoice_id: invoice.id,
+        tenant_id: invoice.tenant_id,
+        invoice_number: invoice.invoice_number,
+      },
+    });
 
     return this.createPaymentLink(
       invoice.id,
       config.id,
-      paymentUrl,
+      paymentLink.url,
       invoice.total - invoice.amount_paid,
       invoice.tenant_id,
       72 // 72 hour expiry
@@ -73,9 +71,6 @@ export class StripeProcessor extends BasePaymentProcessor {
     payload: unknown,
     secret: string
   ): Promise<PaymentEvent> {
-    // In production, verify Stripe webhook signature
-    // const event = stripe.webhooks.constructEvent(payload, signature, secret);
-
     const data = payload as {
       type?: string;
       data?: {
@@ -107,7 +102,7 @@ export class StripeProcessor extends BasePaymentProcessor {
       invoice_id: invoiceId,
       processor_type: 'stripe',
       status,
-      amount_paid: (data.data?.object?.amount ?? 0) / 100, // Stripe uses cents
+      amount_paid: (data.data?.object?.amount ?? 0) / 100,
       transaction_reference: data.data?.object?.id ?? '',
       raw_payload: data as Record<string, unknown>,
       timestamp: new Date().toISOString(),
@@ -126,20 +121,16 @@ export class StripeProcessor extends BasePaymentProcessor {
       return false;
     }
 
-    // Validate key format
     if (!publishable_key.startsWith('pk_') || !secret_key.startsWith('sk_')) {
       return false;
     }
 
-    // In production, make a test API call to validate credentials
-    // try {
-    //   const stripe = new Stripe(secret_key);
-    //   await stripe.balance.retrieve();
-    //   return true;
-    // } catch {
-    //   return false;
-    // }
-
-    return true;
+    try {
+      const stripe = new Stripe(secret_key as string);
+      await stripe.balance.retrieve();
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

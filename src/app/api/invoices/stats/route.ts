@@ -28,7 +28,7 @@ const EMPTY_STATS = {
 
 export const GET = withTenant(async (request: NextRequest, { tenantId }: TenantApiContext) => {
   try {
-    console.log(`[Invoice Stats API] GET for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Invoice Stats API] GET for tenant: ${tenantId}`);
 
     const stats = await getInvoiceStats(tenantId);
 
@@ -36,7 +36,7 @@ export const GET = withTenant(async (request: NextRequest, { tenantId }: TenantA
   } catch (error) {
     console.error('[Invoice Stats API] Error:', error);
     // Return empty stats instead of 500 error
-    console.log(`[Invoice Stats API] Returning empty stats for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Invoice Stats API] Returning empty stats for tenant: ${tenantId}`);
     return NextResponse.json(EMPTY_STATS);
   }
 });

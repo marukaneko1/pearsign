@@ -237,7 +237,7 @@ export async function initializeTenantBillingTables(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_tenant_usage_org ON tenant_usage_counters(org_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_tenant_invoices_org ON tenant_invoices(org_id)`;
 
-  console.log('[TenantBilling] Tables initialized');
+  if (process.env.NODE_ENV !== 'production') console.log('[TenantBilling] Tables initialized');
 }
 
 // ============== LIMITS SERVICE ==============
@@ -310,7 +310,7 @@ export const TenantLimitsService = {
       RETURNING *
     `;
 
-    console.log('[TenantLimits] Set custom limits for', orgId, limits);
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantLimits] Set custom limits for', orgId, limits);
     return mapLimitsFromDb(result[0]);
   },
 
@@ -323,7 +323,7 @@ export const TenantLimitsService = {
       SET custom_limits = false, updated_at = NOW()
       WHERE org_id = ${orgId}
     `;
-    console.log('[TenantLimits] Cleared custom limits for', orgId);
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantLimits] Cleared custom limits for', orgId);
   },
 
   /**
@@ -681,7 +681,7 @@ export const TenantPricingService: IPricingService = {
       RETURNING *
     `;
 
-    console.log('[TenantPricing] Set custom pricing for', orgId, pricing);
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantPricing] Set custom pricing for', orgId, pricing);
     return mapPricingFromDb(result[0]);
   },
 
@@ -796,7 +796,7 @@ export const TenantPricingService: IPricingService = {
 
       await this.setPricing(orgId, { stripeCustomerId: customer.id });
 
-      console.log('[TenantPricing] Created Stripe customer for', orgId, customer.id);
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantPricing] Created Stripe customer for', orgId, customer.id);
       return customer.id;
     } catch (error) {
       console.error('[TenantPricing] Failed to create Stripe customer:', error);
@@ -811,7 +811,7 @@ export const TenantPricingService: IPricingService = {
     const pricing = await this.getPricing(orgId);
 
     if (!pricing.stripeSubscriptionId) {
-      console.log('[TenantPricing] No Stripe subscription for', orgId);
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantPricing] No Stripe subscription for', orgId);
       return;
     }
 
@@ -850,7 +850,7 @@ export const TenantPricingService: IPricingService = {
                 value: String(quantity),
               },
             });
-            console.log('[TenantPricing] Reported usage to Stripe:', { orgId, lookupKey, quantity });
+            if (process.env.NODE_ENV !== 'production') console.log('[TenantPricing] Reported usage to Stripe:', { orgId, lookupKey, quantity });
           }
         }
       }

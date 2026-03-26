@@ -139,7 +139,7 @@ async function ensurePlatformPlans() {
           )
         `;
       }
-      console.log('[Bootstrap] Seeded default plans');
+      if (process.env.NODE_ENV !== 'production') console.log('[Bootstrap] Seeded default plans');
     }
   } catch (error) {
     console.error('[Bootstrap] Error with platform_plans:', error);
@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    console.log('[Bootstrap] Starting full bootstrap...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Bootstrap] Starting full bootstrap...');
 
     await initializeAuthTables();
     await TenantService.initializeTables();
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
     await fixAllSchemas();
     await ensureAdditionalTables();
 
-    console.log('[Bootstrap] All tables initialized');
+    if (process.env.NODE_ENV !== 'production') console.log('[Bootstrap] All tables initialized');
 
     const existing = await sql`
       SELECT id FROM auth_users WHERE email = ${email}
@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
     let userId: string;
     let created = false;
     if (existing.length > 0) {
-      userId = (existing[0] as any).id;
+      userId = (existing[0] as Record<string, unknown>).id as string;
       await sql`
         UPDATE auth_users
         SET password_hash = ${passwordHash}, email_verified = true, updated_at = NOW()
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
 
     let tenantId: string;
     if (tenantCheck.length > 0) {
-      tenantId = (tenantCheck[0] as any).id;
+      tenantId = (tenantCheck[0] as Record<string, unknown>).id as string;
     } else {
       tenantId = `org_${Date.now()}_${Math.random().toString(36).substring(8)}`;
       await sql`
@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
       UPDATE tenants SET plan = 'professional' WHERE id = ${tenantId} AND plan != 'professional'
     `;
 
-    console.log('[Bootstrap] Complete:', { userId, tenantId, email });
+    if (process.env.NODE_ENV !== 'production') console.log('[Bootstrap] Complete:', { userId, tenantId, email });
 
     return NextResponse.json({
       success: true,

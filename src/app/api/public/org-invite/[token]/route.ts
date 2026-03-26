@@ -129,7 +129,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
     if (existingUser) {
       // User exists - link them to the new tenant
       userId = existingUser.id;
-      console.log('[OrgInvite] Existing user found:', invite.ownerEmail);
+      if (process.env.NODE_ENV !== 'production') console.log('[OrgInvite] Existing user found:', invite.ownerEmail);
     } else {
       // Create new auth user
       const ownerFirstName = firstName || invite.ownerName?.split(' ')[0] || 'Owner';
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
       });
 
       userId = newUserId;
-      console.log('[OrgInvite] Created new auth user:', invite.ownerEmail);
+      if (process.env.NODE_ENV !== 'production') console.log('[OrgInvite] Created new auth user:', invite.ownerEmail);
     }
 
     // Accept the invite and create the tenant
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         userName,
         role: 'owner',
       });
-      console.log('[OrgInvite] Created tenant session for new owner:', invite.ownerEmail);
+      if (process.env.NODE_ENV !== 'production') console.log('[OrgInvite] Created tenant session for new owner:', invite.ownerEmail);
     } catch (sessionError) {
       console.error('[OrgInvite] Failed to create session:', sessionError);
       // Continue anyway - user can log in manually
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         setupGuideUrl: `${origin}/?view=settings&section=setup-guide`,
       });
 
-      console.log('[OrgInvite] Onboarding welcome email sent to:', invite.ownerEmail);
+      if (process.env.NODE_ENV !== 'production') console.log('[OrgInvite] Onboarding welcome email sent to:', invite.ownerEmail);
     } catch (emailError) {
       console.error('[OrgInvite] Failed to send welcome email:', emailError);
       // Continue anyway - organization is still activated

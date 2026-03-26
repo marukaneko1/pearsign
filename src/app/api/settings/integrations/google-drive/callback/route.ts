@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("[Google Drive Callback] Processing for tenant:", tenantId);
+    if (process.env.NODE_ENV !== 'production') console.log("[Google Drive Callback] Processing for tenant:", tenantId);
 
     if (error) {
       console.error("[Google Drive Callback] OAuth error:", error);
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
         updated_at = NOW()
     `;
 
-    console.log("[Google Drive Callback] Successfully connected for tenant:", tenantId, "user:", userEmail);
+    if (process.env.NODE_ENV !== 'production') console.log("[Google Drive Callback] Successfully connected for tenant:", tenantId, "user:", userEmail);
 
     // Redirect back to integrations page with success
     return NextResponse.redirect(

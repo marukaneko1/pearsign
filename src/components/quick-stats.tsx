@@ -18,6 +18,7 @@ interface QuickStatsProps {
 export function QuickStats({ onNavigate }: QuickStatsProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -26,14 +27,18 @@ export function QuickStats({ onNavigate }: QuickStatsProps) {
   const loadStats = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch('/api/analytics/dashboard');
       const data = await response.json();
 
       if (data.success) {
         setStats(data.data);
+      } else {
+        setError('Failed to load stats');
       }
-    } catch (error) {
-      console.error('Failed to load dashboard stats:', error);
+    } catch (err) {
+      console.error('Failed to load dashboard stats:', err);
+      setError('Could not load statistics');
     } finally {
       setLoading(false);
     }
@@ -81,6 +86,14 @@ export function QuickStats({ onNavigate }: QuickStatsProps) {
       navigateTo: "activity",
     },
   ];
+
+  if (error && !loading) {
+    return (
+      <div className="rounded-md border border-border/60 bg-card p-4 text-sm text-muted-foreground text-center">
+        {error} — <button onClick={loadStats} className="underline hover:no-underline">retry</button>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" data-tour="stats">

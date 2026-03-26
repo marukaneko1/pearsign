@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin key required' }, { status: 401 });
     }
 
-    console.log('[TenantInit] Starting multi-tenancy system initialization...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Starting multi-tenancy system initialization...');
 
     // Generate unique seed IDs at runtime instead of using hardcoded demo values
     const DEFAULT_TENANT_ID = `tenant-${crypto.randomUUID()}`;
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // 0. Only drop old UUID-based tenant tables when explicitly forced
     const forceRecreate = new URL(request.url).searchParams.get('force') === 'true';
-    console.log('[TenantInit] Checking tenant tables (force=' + forceRecreate + ')...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Checking tenant tables (force=' + forceRecreate + ')...');
     try {
       const checkResult = await sql`
         SELECT data_type FROM information_schema.columns
@@ -52,19 +52,19 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (e) {
-      console.log('[TenantInit] No existing tables to check');
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] No existing tables to check');
     }
 
     // 1. Initialize tenant tables
-    console.log('[TenantInit] Creating tenant tables...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Creating tenant tables...');
     await TenantService.initializeTables();
 
     // 2. Initialize immutable audit log table
-    console.log('[TenantInit] Creating immutable audit log table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Creating immutable audit log table...');
     await ImmutableAuditLogService.initializeTable();
 
     // 3. Create default tenant if it doesn't exist
-    console.log('[TenantInit] Creating default tenant...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Creating default tenant...');
     try {
       await sql`
         INSERT INTO tenants (id, name, slug, plan, status, owner_id, settings, billing)
@@ -95,11 +95,11 @@ export async function POST(request: NextRequest) {
         ON CONFLICT (tenant_id, user_id) DO NOTHING
       `;
     } catch (e) {
-      console.log('[TenantInit] Default tenant may already exist:', e);
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Default tenant may already exist:', e);
     }
 
     // 4. Add tenant_id column to all existing tables
-    console.log('[TenantInit] Adding tenant_id to existing tables...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Adding tenant_id to existing tables...');
 
     const tablesToMigrate = [
       'envelope_documents',
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         `;
 
         if (!tableExists[0]?.exists) {
-          console.log(`[TenantInit] Table ${tableName} does not exist, skipping...`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[TenantInit] Table ${tableName} does not exist, skipping...`);
           continue;
         }
 
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
             ALTER TABLE ${tableName}
             ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)
           `);
-          console.log(`[TenantInit] Added tenant_id to ${tableName}`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[TenantInit] Added tenant_id to ${tableName}`);
 
           // Migrate existing data to default tenant
           await sql.raw(`
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
             SET tenant_id = '${DEFAULT_TENANT_ID}'
             WHERE tenant_id IS NULL
           `);
-          console.log(`[TenantInit] Migrated existing ${tableName} data to default tenant`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[TenantInit] Migrated existing ${tableName} data to default tenant`);
 
           // Make tenant_id NOT NULL (after migration)
           try {
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
             `);
           } catch {
             // Column might have rows with NULL, which would fail
-            console.log(`[TenantInit] Could not set NOT NULL on ${tableName}.tenant_id`);
+            if (process.env.NODE_ENV !== 'production') console.log(`[TenantInit] Could not set NOT NULL on ${tableName}.tenant_id`);
           }
 
           // Create index on tenant_id
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
             ON ${tableName}(tenant_id)
           `);
         } else {
-          console.log(`[TenantInit] tenant_id already exists on ${tableName}`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[TenantInit] tenant_id already exists on ${tableName}`);
         }
       } catch (tableError) {
         console.error(`[TenantInit] Error migrating ${tableName}:`, tableError);
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Create envelope_template_snapshots table if not exists
-    console.log('[TenantInit] Creating envelope_template_snapshots table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Creating envelope_template_snapshots table...');
     await sql`
       CREATE TABLE IF NOT EXISTS envelope_template_snapshots (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     `;
 
     // 6. Create tenant usage tracking
-    console.log('[TenantInit] Setting up usage tracking...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Setting up usage tracking...');
     const now = new Date();
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log('[TenantInit] Multi-tenancy system initialized successfully!');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantInit] Multi-tenancy system initialized successfully!');
 
     return NextResponse.json({
       success: true,

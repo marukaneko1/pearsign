@@ -129,23 +129,23 @@ export function isFeatureEnabled(feature: string): boolean {
 export function logEnvironmentStatus(): void {
   const result = validateEnvironment();
 
-  console.log('\n=== PearSign Environment Status ===');
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`App URL: ${process.env.NEXT_PUBLIC_APP_URL || 'not set'}`);
-  console.log(`Database: ${process.env.DATABASE_URL ? '✓ configured' : '✗ missing'}`);
-  console.log(`Email: ${isFeatureEnabled('email') ? '✓ enabled' : '○ disabled'}`);
-  console.log(`SMS: ${isFeatureEnabled('sms') ? '✓ enabled' : '○ disabled'}`);
-  console.log(`Payments: ${isFeatureEnabled('payments') ? '✓ enabled' : '○ disabled'}`);
+  if (process.env.NODE_ENV !== 'production') console.log('\n=== PearSign Environment Status ===');
+  if (process.env.NODE_ENV !== 'production') console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`App URL: ${process.env.NEXT_PUBLIC_APP_URL || 'not set'}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`Database: ${process.env.DATABASE_URL ? '✓ configured' : '✗ missing'}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`Email: ${isFeatureEnabled('email') ? '✓ enabled' : '○ disabled'}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`SMS: ${isFeatureEnabled('sms') ? '✓ enabled' : '○ disabled'}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`Payments: ${isFeatureEnabled('payments') ? '✓ enabled' : '○ disabled'}`);
 
   if (result.warnings.length > 0) {
-    console.log('\nWarnings:');
-    result.warnings.forEach(w => console.log(`  ⚠ ${w}`));
+    if (process.env.NODE_ENV !== 'production') console.log('\nWarnings:');
+    if (process.env.NODE_ENV !== 'production') result.warnings.forEach(w => console.log(`  ⚠ ${w}`));
   }
 
   if (!result.valid) {
-    console.log('\nMissing required variables:');
-    result.missing.forEach(m => console.log(`  ✗ ${m}`));
+    if (process.env.NODE_ENV !== 'production') console.log('\nMissing required variables:');
+    if (process.env.NODE_ENV !== 'production') result.missing.forEach(m => console.log(`  ✗ ${m}`));
   }
 
-  console.log('===================================\n');
+  if (process.env.NODE_ENV !== 'production') console.log('===================================\n');
 }

@@ -26,7 +26,7 @@ async function refreshAccessToken(config: SalesforceConfig, tenantId: string): P
     throw new Error("Cannot refresh token: missing credentials");
   }
 
-  console.log("[Salesforce] Refreshing access token...");
+  if (process.env.NODE_ENV !== 'production') console.log("[Salesforce] Refreshing access token...");
 
   const response = await fetch(`${salesforceLoginUrl}/services/oauth2/token`, {
     method: "POST",
@@ -241,7 +241,7 @@ export async function logSigningTask(tenantId: string, data: {
   });
 
   if (result.success) {
-    console.log("[Salesforce] Created task for signing:", data.documentTitle);
+    if (process.env.NODE_ENV !== 'production') console.log("[Salesforce] Created task for signing:", data.documentTitle);
     return { success: true, id: (result.data as { id: string }).id };
   }
 
@@ -264,7 +264,7 @@ export async function syncSignerToSalesforce(tenantId: string, data: {
   try {
     const existing = await findContactByEmail(tenantId, data.email);
     if (existing) {
-      console.log("[Salesforce] Contact already exists:", data.email);
+      if (process.env.NODE_ENV !== 'production') console.log("[Salesforce] Contact already exists:", data.email);
       return;
     }
 
@@ -280,7 +280,7 @@ export async function syncSignerToSalesforce(tenantId: string, data: {
     });
 
     if (result.success) {
-      console.log("[Salesforce] Created contact:", data.email);
+      if (process.env.NODE_ENV !== 'production') console.log("[Salesforce] Created contact:", data.email);
     } else {
       console.error("[Salesforce] Failed to create contact:", result.error);
     }

@@ -77,7 +77,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesDefaults =
  * This is idempotent and safe to call multiple times.
  */
 export async function ensureBrandingConfig(tenantId: string): Promise<BrandingDefaults> {
-  console.log(`[TenantConfig] ensureBrandingConfig called for tenant: ${tenantId}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] ensureBrandingConfig called for tenant: ${tenantId}`);
 
   try {
     // First, ensure the table has the right columns (migration safety)
@@ -101,12 +101,12 @@ export async function ensureBrandingConfig(tenantId: string): Promise<BrandingDe
     `;
 
     if (existing.length > 0) {
-      console.log(`[TenantConfig] Branding config exists for tenant: ${tenantId}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] Branding config exists for tenant: ${tenantId}`);
       return existing[0] as BrandingDefaults;
     }
 
     // Row doesn't exist - create with defaults
-    console.log(`[TenantConfig] Creating default branding config for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] Creating default branding config for tenant: ${tenantId}`);
 
     await sql`
       INSERT INTO branding_settings (
@@ -124,7 +124,7 @@ export async function ensureBrandingConfig(tenantId: string): Promise<BrandingDe
       ON CONFLICT (organization_id) DO NOTHING
     `;
 
-    console.log(`[TenantConfig] Created branding config for tenant: ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] Created branding config for tenant: ${tenantId}`);
     return { ...DEFAULT_BRANDING };
   } catch (error) {
     console.error(`[TenantConfig] Error in ensureBrandingConfig for tenant ${tenantId}:`, error);
@@ -167,7 +167,7 @@ async function ensureBrandingTableColumns(): Promise<void> {
           updated_at TIMESTAMP DEFAULT NOW()
         )
       `;
-      console.log('[TenantConfig] Created branding_settings table');
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantConfig] Created branding_settings table');
     }
 
     // Add columns if they don't exist (safe migration)
@@ -197,7 +197,7 @@ export async function ensureNotificationPreferences(
   tenantId: string,
   userId: string
 ): Promise<NotificationPreferencesDefaults & { id: string }> {
-  console.log(`[TenantConfig] ensureNotificationPreferences called for tenant: ${tenantId}, user: ${userId}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] ensureNotificationPreferences called for tenant: ${tenantId}, user: ${userId}`);
 
   try {
     // Check for existing row
@@ -224,7 +224,7 @@ export async function ensureNotificationPreferences(
     }
 
     // Row doesn't exist - create with defaults
-    console.log(`[TenantConfig] Creating default notification preferences for user: ${userId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] Creating default notification preferences for user: ${userId}`);
 
     await sql`ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS envelope_declined BOOLEAN DEFAULT true`;
 
@@ -280,7 +280,7 @@ export async function ensureInvoicesTable(): Promise<boolean> {
       return true;
     }
 
-    console.log('[TenantConfig] Invoices table does not exist - should run initialization');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantConfig] Invoices table does not exist - should run initialization');
     return false;
   } catch (error) {
     console.error('[TenantConfig] Error checking invoices table:', error);
@@ -331,7 +331,7 @@ export async function ensureNotificationsTable(): Promise<boolean> {
         WHERE is_read = false
       `;
 
-      console.log('[TenantConfig] Created notifications table');
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantConfig] Created notifications table');
     }
 
     return true;
@@ -375,7 +375,7 @@ export async function ensureNotificationPreferencesTable(): Promise<boolean> {
           UNIQUE(org_id, user_id)
         )
       `;
-      console.log('[TenantConfig] Created notification_preferences table');
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantConfig] Created notification_preferences table');
     }
 
     return true;
@@ -396,7 +396,7 @@ export async function initializeTenantConfig(tenantId: string, userId?: string):
   notifications: boolean;
   preferences: boolean;
 }> {
-  console.log(`[TenantConfig] Initializing config for tenant: ${tenantId}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] Initializing config for tenant: ${tenantId}`);
 
   const results = {
     branding: false,
@@ -431,6 +431,6 @@ export async function initializeTenantConfig(tenantId: string, userId?: string):
     console.error('[TenantConfig] Failed to init preferences:', e);
   }
 
-  console.log(`[TenantConfig] Initialization complete for tenant: ${tenantId}`, results);
+  if (process.env.NODE_ENV !== 'production') console.log(`[TenantConfig] Initialization complete for tenant: ${tenantId}`, results);
   return results;
 }

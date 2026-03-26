@@ -338,10 +338,10 @@ export const FusionFormsService = {
     try {
       await sql`SELECT 1 FROM templates LIMIT 1`;
     } catch (e) {
-      console.log('[FusionForms] Templates table check:', e);
+      if (process.env.NODE_ENV !== 'production') console.log('[FusionForms] Templates table check:', e);
     }
 
-    console.log('[FusionForms] Looking up form by access code:', accessCode);
+    if (process.env.NODE_ENV !== 'production') console.log('[FusionForms] Looking up form by access code:', accessCode);
 
     const result = await sql`
       SELECT ff.*,
@@ -353,10 +353,10 @@ export const FusionFormsService = {
       WHERE ff.access_code = ${accessCode} AND ff.status = 'active'
     `;
 
-    console.log('[FusionForms] Query result count:', result.length);
+    if (process.env.NODE_ENV !== 'production') console.log('[FusionForms] Query result count:', result.length);
 
     if (result.length === 0) {
-      console.log('[FusionForms] No form found for access code:', accessCode);
+      if (process.env.NODE_ENV !== 'production') console.log('[FusionForms] No form found for access code:', accessCode);
       return null;
     }
 
@@ -364,7 +364,7 @@ export const FusionFormsService = {
 
     // Check expiration
     if (form.expiresAt && new Date(form.expiresAt) < new Date()) {
-      console.log('[FusionForms] Form expired:', form.expiresAt);
+      if (process.env.NODE_ENV !== 'production') console.log('[FusionForms] Form expired:', form.expiresAt);
       return null;
     }
 
@@ -536,6 +536,43 @@ export const FusionFormsService = {
 
     return {
       submissions: submissions.map(mapSubmissionFromDb),
+      total: parseInt(countResult[0].count, 10),
+    };
+  },
+
+  /**
+   * Get ALL submissions across all forms for a tenant (for dashboard view)
+   */
+  async getAllSubmissionsForOrg(
+    orgId: string,
+    options: { limit?: number; offset?: number } = {}
+  ): Promise<{ submissions: Array<FusionFormSubmission & { formName: string }>; total: number }> {
+    await ensureFusionFormTables();
+
+    const limit = options.limit || 100;
+    const offset = options.offset || 0;
+
+    const submissions = await sql`
+      SELECT ffs.*, ff.name as form_name
+      FROM fusion_form_submissions ffs
+      JOIN fusion_forms ff ON ffs.fusion_form_id = ff.id
+      WHERE ff.org_id = ${orgId}
+      ORDER BY ffs.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const countResult = await sql`
+      SELECT COUNT(*) as count
+      FROM fusion_form_submissions ffs
+      JOIN fusion_forms ff ON ffs.fusion_form_id = ff.id
+      WHERE ff.org_id = ${orgId}
+    `;
+
+    return {
+      submissions: submissions.map(row => ({
+        ...mapSubmissionFromDb(row),
+        formName: row.form_name as string,
+      })),
       total: parseInt(countResult[0].count, 10),
     };
   },

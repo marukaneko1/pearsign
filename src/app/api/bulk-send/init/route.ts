@@ -1,11 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+
+function requireAdminKey(request: NextRequest): NextResponse | null {
+  const adminKey = request.headers.get('x-admin-key');
+  const expectedKey = process.env.ADMIN_SECRET_KEY;
+  if (!expectedKey || !adminKey || adminKey !== expectedKey) {
+    return NextResponse.json(
+      { error: 'Unauthorized', message: 'Admin authentication required.' },
+      { status: 401 }
+    );
+  }
+  return null;
+}
 
 /**
  * POST /api/bulk-send/init
- * Initialize bulk send database tables
+ * Initialize bulk send database tables (admin only)
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     // Create bulk_send_jobs table
     await sql`
@@ -70,9 +82,12 @@ export async function POST() {
 
 /**
  * GET /api/bulk-send/init
- * Check if tables exist
+ * Check if tables exist (admin only)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = requireAdminKey(request);
+  if (authError) return authError;
+
   try {
     const result = await sql`
       SELECT EXISTS (

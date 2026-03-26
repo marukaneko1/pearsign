@@ -114,19 +114,19 @@ export interface FieldTypeConfig {
 // ================== CONSTANTS ==================
 
 export const FIELD_TYPES: FieldTypeConfig[] = [
-  { type: 'signature', label: 'Signature', icon: PenTool, width: 200, height: 60, color: '#2563eb', bgColor: 'bg-blue-100 dark:bg-blue-950' },
-  { type: 'initials', label: 'Initials', icon: Type, width: 80, height: 50, color: '#3b82f6', bgColor: 'bg-blue-50 dark:bg-blue-900' },
-  { type: 'date', label: 'Date Signed', icon: Calendar, width: 150, height: 32, color: '#f97316', bgColor: 'bg-orange-100 dark:bg-orange-950' },
-  { type: 'name', label: 'Full Name', icon: User, width: 200, height: 32, color: '#6b7280', bgColor: 'bg-gray-100 dark:bg-gray-800' },
-  { type: 'email', label: 'Email', icon: Mail, width: 220, height: 32, color: '#10b981', bgColor: 'bg-emerald-100 dark:bg-emerald-950' },
-  { type: 'text', label: 'Text Field', icon: Type, width: 200, height: 32, color: '#6b7280', bgColor: 'bg-gray-100 dark:bg-gray-800', hasSubMenu: true },
-  { type: 'checkbox', label: 'Checkbox', icon: CheckSquare, width: 24, height: 24, color: '#14b8a6', bgColor: 'bg-teal-100 dark:bg-teal-950' },
-  { type: 'company', label: 'Company', icon: Building2, width: 200, height: 32, color: '#6366f1', bgColor: 'bg-indigo-100 dark:bg-indigo-950' },
-  { type: 'title', label: 'Job Title', icon: Edit3, width: 180, height: 32, color: '#8b5cf6', bgColor: 'bg-purple-100 dark:bg-purple-950' },
-  { type: 'upload', label: 'Document Upload', icon: Paperclip, width: 200, height: 60, color: '#06b6d4', bgColor: 'bg-cyan-100 dark:bg-cyan-950' },
-  { type: 'number', label: 'Number', icon: Hash, width: 100, height: 32, color: '#8b5cf6', bgColor: 'bg-purple-100 dark:bg-purple-950' },
-  { type: 'phone', label: 'Phone', icon: Phone, width: 150, height: 32, color: '#f59e0b', bgColor: 'bg-amber-100 dark:bg-amber-950' },
-  { type: 'address', label: 'Address', icon: MapPin, width: 250, height: 60, color: '#f43f5e', bgColor: 'bg-rose-100 dark:bg-rose-950' },
+  { type: 'signature', label: 'Signature', icon: PenTool, width: 180, height: 42, color: '#2563eb', bgColor: 'bg-blue-100 dark:bg-blue-950' },
+  { type: 'initials', label: 'Initials', icon: Type, width: 70, height: 30, color: '#3b82f6', bgColor: 'bg-blue-50 dark:bg-blue-900' },
+  { type: 'date', label: 'Date Signed', icon: Calendar, width: 130, height: 22, color: '#f97316', bgColor: 'bg-orange-100 dark:bg-orange-950' },
+  { type: 'name', label: 'Full Name', icon: User, width: 180, height: 22, color: '#6b7280', bgColor: 'bg-gray-100 dark:bg-gray-800' },
+  { type: 'email', label: 'Email', icon: Mail, width: 200, height: 22, color: '#10b981', bgColor: 'bg-emerald-100 dark:bg-emerald-950' },
+  { type: 'text', label: 'Text Field', icon: Type, width: 180, height: 22, color: '#6b7280', bgColor: 'bg-gray-100 dark:bg-gray-800', hasSubMenu: true },
+  { type: 'checkbox', label: 'Checkbox', icon: CheckSquare, width: 20, height: 20, color: '#14b8a6', bgColor: 'bg-teal-100 dark:bg-teal-950' },
+  { type: 'company', label: 'Company', icon: Building2, width: 180, height: 22, color: '#6366f1', bgColor: 'bg-indigo-100 dark:bg-indigo-950' },
+  { type: 'title', label: 'Job Title', icon: Edit3, width: 160, height: 22, color: '#8b5cf6', bgColor: 'bg-purple-100 dark:bg-purple-950' },
+  { type: 'upload', label: 'Document Upload', icon: Paperclip, width: 180, height: 42, color: '#06b6d4', bgColor: 'bg-cyan-100 dark:bg-cyan-950' },
+  { type: 'number', label: 'Number', icon: Hash, width: 90, height: 22, color: '#8b5cf6', bgColor: 'bg-purple-100 dark:bg-purple-950' },
+  { type: 'phone', label: 'Phone', icon: Phone, width: 130, height: 22, color: '#f59e0b', bgColor: 'bg-amber-100 dark:bg-amber-950' },
+  { type: 'address', label: 'Address', icon: MapPin, width: 220, height: 22, color: '#f43f5e', bgColor: 'bg-rose-100 dark:bg-rose-950' },
 ];
 
 export const getFieldTypeConfig = (type: FieldType): FieldTypeConfig => {

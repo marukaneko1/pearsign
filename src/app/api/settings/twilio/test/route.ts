@@ -71,7 +71,7 @@ export const POST = withTenant(
       const result = await response.json();
 
       if (response.ok) {
-        console.log("[Twilio Test] SMS sent successfully:", result.sid);
+        if (process.env.NODE_ENV !== 'production') console.log("[Twilio Test] SMS sent successfully:", result.sid);
         return NextResponse.json({
           success: true,
           message: `Test SMS sent to ${testPhone}`,

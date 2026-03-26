@@ -166,7 +166,7 @@ async function seedDefaultPlans() {
     `;
   }
 
-  console.log('[AdminPlans] Seeded default plans');
+  if (process.env.NODE_ENV !== 'production') console.log('[AdminPlans] Seeded default plans');
 }
 
 // ============== API HANDLERS ==============
@@ -308,7 +308,7 @@ export async function POST(request: NextRequest) {
       )
     `;
 
-    console.log('[AdminPlans] Created new plan:', id);
+    if (process.env.NODE_ENV !== 'production') console.log('[AdminPlans] Created new plan:', id);
 
     return NextResponse.json({
       success: true,
@@ -394,7 +394,7 @@ export async function PUT(request: NextRequest) {
     // Update timestamp
     await sql`UPDATE platform_plans SET updated_at = NOW() WHERE id = ${id}`;
 
-    console.log('[AdminPlans] Updated plan:', id);
+    if (process.env.NODE_ENV !== 'production') console.log('[AdminPlans] Updated plan:', id);
 
     return NextResponse.json({
       success: true,
@@ -450,7 +450,7 @@ export async function DELETE(request: NextRequest) {
 
     await sql`DELETE FROM platform_plans WHERE id = ${planId}`;
 
-    console.log('[AdminPlans] Deleted plan:', planId);
+    if (process.env.NODE_ENV !== 'production') console.log('[AdminPlans] Deleted plan:', planId);
 
     return NextResponse.json({
       success: true,

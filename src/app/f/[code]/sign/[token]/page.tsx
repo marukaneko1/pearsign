@@ -43,6 +43,7 @@ import {
   Plus,
   Upload,
   Maximize2,
+  Move,
 } from "lucide-react";
 import { SignaturePad } from "@/components/signature-pad";
 
@@ -116,6 +117,7 @@ export default function FusionFormSigningPage() {
   const [showSavedSignatures, setShowSavedSignatures] = useState(false);
   const [generatedPdfBytes, setGeneratedPdfBytes] = useState<Uint8Array | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [fieldPositionOverrides, setFieldPositionOverrides] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
 
   // Load saved signatures on mount
   useEffect(() => {
@@ -293,11 +295,14 @@ export default function FusionFormSigningPage() {
 
   const handleSaveProgress = useCallback(async () => {
     try {
-      await fetch(`/api/public/fusion-forms/sign/${token}`, {
+      const res = await fetch(`/api/public/fusion-forms/sign/${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fieldValues }),
       });
+      if (!res.ok) {
+        console.warn(`[FusionSign] Save progress failed with status ${res.status}`);
+      }
     } catch (error) {
       console.error("Error saving progress:", error);
     }
@@ -447,19 +452,26 @@ export default function FusionFormSigningPage() {
   const canProceedToSignature = filledRequiredFields.length === requiredFields.length;
   const canComplete = canProceedToSignature && (typedSignature || signatureData);
 
-  // Convert template fields to PDF signature fields format
-  const pdfSignatureFields = fields.map((field, index) => ({
-    id: field.id,
-    type: field.type === "signature" ? "signature" as const : "text" as const,
-    x: field.position?.x || 10,
-    y: field.position?.y || 70 + index * 10,
-    width: field.position?.width || 40,
-    height: field.position?.height || 8,
-    page: field.position?.page || 1,
-    label: field.name,
-    required: field.required,
-    value: field.type === "signature" ? undefined : fieldValues[field.id],
-  }));
+  // Convert template fields to PDF signature fields format, applying any signer position overrides
+  const pdfSignatureFields = fields.map((field, index) => {
+    const override = fieldPositionOverrides[field.id];
+    return {
+      id: field.id,
+      type: field.type === "signature" ? "signature" as const : "text" as const,
+      x: override?.x ?? (field.position?.x || 10),
+      y: override?.y ?? (field.position?.y || (10 + index * 6)),
+      width: override?.width ?? (field.position?.width || 25),
+      height: override?.height ?? (field.position?.height || (field.type === "signature" ? 5 : 3)),
+      page: field.position?.page || 1,
+      label: field.name,
+      required: field.required,
+      value: field.type === "signature" ? undefined : fieldValues[field.id],
+    };
+  });
+
+  const handleFieldAdjust = (fieldId: string, x: number, y: number, width: number, height: number) => {
+    setFieldPositionOverrides(prev => ({ ...prev, [fieldId]: { x, y, width, height } }));
+  };
 
   // Loading State
   if (loading) {
@@ -577,7 +589,12 @@ export default function FusionFormSigningPage() {
                 </Button>
               )}
               {completedData?.certificateUrl && (
-                <Button variant="outline" size="lg" className="h-12 border-2">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-12 border-2"
+                  onClick={() => window.open(completedData.certificateUrl, '_blank', 'noopener,noreferrer')}
+                >
                   <Shield className="h-5 w-5 mr-2" />
                   View Certificate
                 </Button>
@@ -721,6 +738,12 @@ export default function FusionFormSigningPage() {
         <div className="grid lg:grid-cols-5 gap-6 lg:gap-10">
           {/* Document Preview (3 columns) */}
           <div className="lg:col-span-3 order-2 lg:order-1">
+            {currentStep !== "review" && pdfSignatureFields.length > 0 && (
+              <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground bg-slate-50 dark:bg-slate-800/60 px-3 py-2 rounded-lg border">
+                <Move className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+                <span>Drag field boxes to reposition them. Use the corner handle to resize.</span>
+              </div>
+            )}
             <Card className="h-full min-h-[500px] overflow-hidden border-0 shadow-xl">
               <PDFSigningViewer
                 pdfUrl={signingData?.form.pdfUrl}
@@ -732,6 +755,8 @@ export default function FusionFormSigningPage() {
                   }
                 }}
                 readOnly={currentStep === "review"}
+                allowFieldAdjust={currentStep !== "review"}
+                onFieldAdjust={handleFieldAdjust}
                 className="h-[600px]"
               />
             </Card>
@@ -1200,6 +1225,7 @@ export default function FusionFormSigningPage() {
               fields={pdfSignatureFields}
               signatureData={signatureTab === "type" ? typedSignature : signatureData}
               readOnly
+              allowFieldAdjust={false}
               className="h-full"
             />
           </div>

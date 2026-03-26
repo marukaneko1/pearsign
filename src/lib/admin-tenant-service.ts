@@ -109,7 +109,7 @@ export async function initializeAdminTables(): Promise<void> {
   // Create indexes for efficient queries
   await sql`
     ALTER TABLE organization_invites ADD COLUMN IF NOT EXISTS allowed_domain VARCHAR(255)
-  `.catch(() => {});
+  `.catch(err => console.warn('[AdminTenantService] Column may already exist:', err));
 
   await sql`
     CREATE INDEX IF NOT EXISTS idx_org_invites_token ON organization_invites(token)
@@ -124,7 +124,7 @@ export async function initializeAdminTables(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_admin_audit_timestamp ON admin_audit_log(timestamp DESC)
   `;
 
-  console.log('[AdminTenantService] Tables initialized');
+  if (process.env.NODE_ENV !== 'production') console.log('[AdminTenantService] Tables initialized');
 }
 
 // ============== ADMIN AUDIT LOGGING ==============

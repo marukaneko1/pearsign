@@ -147,7 +147,7 @@ const DEMO_TEMPLATES = [
  * Create sample documents for the demo org
  */
 async function createSampleDocuments(orgId: string, userId: string) {
-  console.log('[Demo Account] Creating sample documents...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Creating sample documents...');
 
   for (const doc of DEMO_DOCUMENTS) {
     const envelopeId = `demo-env-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -201,14 +201,14 @@ async function createSampleDocuments(orgId: string, userId: string) {
     `;
   }
 
-  console.log('[Demo Account] Created', DEMO_DOCUMENTS.length, 'sample documents');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Created', DEMO_DOCUMENTS.length, 'sample documents');
 }
 
 /**
  * Create sample templates for the demo org
  */
 async function createSampleTemplates(orgId: string, userId: string) {
-  console.log('[Demo Account] Creating sample templates...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Creating sample templates...');
 
   // Ensure templates table exists
   await sql`
@@ -247,14 +247,14 @@ async function createSampleTemplates(orgId: string, userId: string) {
     `;
   }
 
-  console.log('[Demo Account] Created', DEMO_TEMPLATES.length, 'sample templates');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Created', DEMO_TEMPLATES.length, 'sample templates');
 }
 
 /**
  * Create sample team members for the demo org
  */
 async function createSampleTeamMembers(orgId: string) {
-  console.log('[Demo Account] Creating sample team members...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Creating sample team members...');
 
   for (const member of DEMO_TEAM) {
     const memberId = `demo-user-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -279,7 +279,7 @@ async function createSampleTeamMembers(orgId: string) {
         RETURNING id
       `;
     } catch (e) {
-      console.log('[Demo Account] Team member already exists:', member.email);
+      if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Team member already exists:', member.email);
     }
 
     // Get user ID
@@ -301,14 +301,14 @@ async function createSampleTeamMembers(orgId: string) {
     }
   }
 
-  console.log('[Demo Account] Created', DEMO_TEAM.length, 'sample team members');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Created', DEMO_TEAM.length, 'sample team members');
 }
 
 /**
  * Set up demo branding
  */
 async function setupDemoBranding(orgId: string) {
-  console.log('[Demo Account] Setting up demo branding...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Setting up demo branding...');
 
   try {
     // First, try to insert into organizations table if it exists (for FK constraint)
@@ -318,7 +318,7 @@ async function setupDemoBranding(orgId: string) {
       ON CONFLICT (id) DO NOTHING
     `.catch(() => {
       // Organizations table may not exist, which is fine
-      console.log('[Demo Account] Organizations table not found (OK)');
+      if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Organizations table not found (OK)');
     });
 
     // Generate a unique ID for branding
@@ -343,10 +343,10 @@ async function setupDemoBranding(orgId: string) {
         updated_at = NOW()
     `;
 
-    console.log('[Demo Account] Demo branding configured');
+    if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Demo branding configured');
   } catch (error) {
     // Branding setup is optional - don't fail the whole setup
-    console.log('[Demo Account] Branding setup skipped (optional):', error instanceof Error ? error.message : error);
+    if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Branding setup skipped (optional):', error instanceof Error ? error.message : error);
   }
 }
 
@@ -354,7 +354,7 @@ async function setupDemoBranding(orgId: string) {
  * Create sample activity/audit logs
  */
 async function createSampleActivity(orgId: string, userId: string) {
-  console.log('[Demo Account] Creating sample activity...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Creating sample activity...');
 
   try {
     const activities = [
@@ -411,10 +411,10 @@ async function createSampleActivity(orgId: string, userId: string) {
       `;
     }
 
-    console.log('[Demo Account] Created', activities.length, 'sample activities');
+    if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Created', activities.length, 'sample activities');
   } catch (error) {
     // Activity creation is optional - don't fail the whole setup
-    console.log('[Demo Account] Activity creation skipped (optional):', error instanceof Error ? error.message : error);
+    if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Activity creation skipped (optional):', error instanceof Error ? error.message : error);
   }
 }
 
@@ -422,27 +422,27 @@ async function createSampleActivity(orgId: string, userId: string) {
  * Clear existing demo data (for reset)
  */
 async function clearDemoData(orgId: string) {
-  console.log('[Demo Account] Clearing existing demo data...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Clearing existing demo data...');
 
   // Clear documents
   await sql`DELETE FROM envelope_signing_sessions WHERE org_id = ${orgId}`;
   await sql`DELETE FROM envelope_documents WHERE org_id = ${orgId}`;
 
   // Clear templates
-  await sql`DELETE FROM document_templates WHERE org_id = ${orgId}`.catch(() => {});
+  await sql`DELETE FROM document_templates WHERE org_id = ${orgId}`.catch(err => console.warn('[DemoAccount] document_templates delete failed:', err));
 
   // Clear audit logs
-  await sql`DELETE FROM audit_logs WHERE org_id = ${orgId}`.catch(() => {});
+  await sql`DELETE FROM audit_logs WHERE org_id = ${orgId}`.catch(err => console.warn('[DemoAccount] audit_logs delete failed:', err));
 
   // Clear team members (except owner)
   for (const member of DEMO_TEAM) {
     await sql`
       DELETE FROM tenant_users WHERE tenant_id = ${orgId}
       AND user_id IN (SELECT id FROM auth_users WHERE email = ${member.email})
-    `.catch(() => {});
+    `.catch(err => console.warn('[DemoAccount] Team member delete failed:', err));
   }
 
-  console.log('[Demo Account] Demo data cleared');
+  if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Demo data cleared');
 }
 
 /**
@@ -464,7 +464,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const action = body.action || 'setup';
 
-    console.log('[Demo Account] Action:', action);
+    if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Action:', action);
 
     // Initialize tables
     await initializeAuthTables();
@@ -481,7 +481,7 @@ export async function POST(request: NextRequest) {
 
       if (existingUser.length > 0) {
         userId = existingUser[0].id;
-        console.log('[Demo Account] Demo user already exists:', userId);
+        if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Demo user already exists:', userId);
 
         // Mark email as verified
         await sql`
@@ -503,7 +503,7 @@ export async function POST(request: NextRequest) {
           skipEmailVerification: true,
         });
         userId = result.userId;
-        console.log('[Demo Account] Created demo user:', userId);
+        if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Created demo user:', userId);
       }
 
       // Check if demo org exists
@@ -531,7 +531,7 @@ export async function POST(request: NextRequest) {
             status = 'active',
             updated_at = NOW()
         `;
-        console.log('[Demo Account] Created demo org:', DEMO_ACCOUNT.orgId);
+        if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Created demo org:', DEMO_ACCOUNT.orgId);
       } else {
         // Ensure org is active with enterprise plan
         await sql`
@@ -557,7 +557,7 @@ export async function POST(request: NextRequest) {
             ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = 'owner'
           `;
         } catch (e) {
-          console.log('[Demo Account] Could not add to tenant_members:', e);
+          if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Could not add to tenant_members:', e);
         }
       }
 
@@ -578,10 +578,10 @@ export async function POST(request: NextRequest) {
               enabled = true,
               updated_at = NOW()
           `;
-          console.log('[Demo Account] Copied SendGrid config to demo org');
+          if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Copied SendGrid config to demo org');
         }
       } catch (e) {
-        console.log('[Demo Account] No SendGrid config to copy:', e);
+        if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] No SendGrid config to copy:', e);
       }
 
       // If reset, clear existing data first
@@ -596,7 +596,7 @@ export async function POST(request: NextRequest) {
       await setupDemoBranding(DEMO_ACCOUNT.orgId);
       await createSampleActivity(DEMO_ACCOUNT.orgId, userId);
 
-      console.log('[Demo Account] Full sandbox setup complete!');
+      if (process.env.NODE_ENV !== 'production') console.log('[Demo Account] Full sandbox setup complete!');
 
       return NextResponse.json({
         success: true,

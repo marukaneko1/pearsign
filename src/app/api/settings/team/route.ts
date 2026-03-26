@@ -59,11 +59,11 @@ export const GET = withTenant(async (request: NextRequest, { tenantId }: TenantA
  */
 export const POST = withTenant(
   async (request: NextRequest, { context, tenantId }: TenantApiContext) => {
-    console.log('[Team Invite] POST /api/settings/team - Start, tenant:', tenantId);
+    if (process.env.NODE_ENV !== 'production') console.log('[Team Invite] POST /api/settings/team - Start, tenant:', tenantId);
     try {
       const body = await request.json();
       const { email, role, teams } = body;
-      console.log('[Team Invite] Inviting:', email, 'role:', role);
+      if (process.env.NODE_ENV !== 'production') console.log('[Team Invite] Inviting:', email, 'role:', role);
 
       if (!email || !role) {
         return NextResponse.json({ error: 'Email and role are required' }, { status: 400 });
@@ -97,12 +97,12 @@ export const POST = withTenant(
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token TEXT`;
 
       // Insert the user for this tenant
-      console.log('[Team Invite] Inserting user record:', id);
+      if (process.env.NODE_ENV !== 'production') console.log('[Team Invite] Inserting user record:', id);
       await sql`
         INSERT INTO users (id, organization_id, email, role, status, invited_at, invite_token, created_at, updated_at)
         VALUES (${id}, ${tenantId}, ${email}, ${role}, 'invited', ${now}, ${inviteToken}, ${now}, ${now})
       `;
-      console.log('[Team Invite] User record inserted successfully');
+      if (process.env.NODE_ENV !== 'production') console.log('[Team Invite] User record inserted successfully');
 
       // Add to teams if specified
       if (teams && teams.length > 0) {
@@ -150,7 +150,7 @@ export const POST = withTenant(
         });
 
         if (emailResult.success) {
-          console.log('[Team] Invite email sent to:', email);
+          if (process.env.NODE_ENV !== 'production') console.log('[Team] Invite email sent to:', email);
         } else {
           console.error('[Team] Invite email FAILED for:', email, emailResult.error);
         }

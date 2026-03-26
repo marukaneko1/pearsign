@@ -161,7 +161,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         'signer-uploads'
       );
       fileObjectPath = storageResult.objectPath;
-      console.log("[Signer Upload] Stored in Object Storage:", fileObjectPath);
+      if (process.env.NODE_ENV !== 'production') console.log("[Signer Upload] Stored in Object Storage:", fileObjectPath);
     } catch (storageErr) {
       console.warn("[Signer Upload] Object Storage failed, falling back to DB:", storageErr);
       fileBase64 = buffer.toString('base64');

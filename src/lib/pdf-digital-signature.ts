@@ -1,3 +1,6 @@
+const isDev = process.env.NODE_ENV !== 'production';
+const sigLog = isDev ? (...args: unknown[]) => console.log(...args) : () => {};
+
 /**
  * PearSign PDF Digital Signature Service (v4 - Approval Signatures)
  *
@@ -182,7 +185,7 @@ export function splitPemBundle(pemBundle: string): string[] {
     certificates.push(match[0].trim());
   }
 
-  console.log(`[PemBundle] Parsed ${certificates.length} certificate(s) from bundle`);
+  sigLog(`[PemBundle] Parsed ${certificates.length} certificate(s) from bundle`);
   return certificates;
 }
 
@@ -204,7 +207,7 @@ export function loadCertificateChain(caBundlePem: string): string[] {
       const cert = forge.pki.certificateFromPem(chainCerts[i]);
       const subject = cert.subject.getField('CN')?.value || 'Unknown';
       const issuer = cert.issuer.getField('CN')?.value || 'Unknown';
-      console.log(`[CertChain] Cert ${i + 1}: Subject="${subject}", Issuer="${issuer}"`);
+      sigLog(`[CertChain] Cert ${i + 1}: Subject="${subject}", Issuer="${issuer}"`);
     } catch (e) {
       console.error(`[CertChain] Failed to parse cert ${i + 1}:`, e);
     }
@@ -241,10 +244,10 @@ export function validateCertificationCertificate(certificate: SigningCertificate
     );
   }
 
-  console.log('[CertValidation] ✓ Certificate is suitable for certification signatures');
-  console.log(`[CertValidation]   - Not self-signed: ${!certificate.isSelfSigned}`);
-  console.log(`[CertValidation]   - Chain present: ${certificate.certificateChain.length} cert(s)`);
-  console.log(`[CertValidation]   - Chain validated: ${certificate.chainValidated}`);
+  sigLog('[CertValidation] ✓ Certificate is suitable for certification signatures');
+  sigLog(`[CertValidation]   - Not self-signed: ${!certificate.isSelfSigned}`);
+  sigLog(`[CertValidation]   - Chain present: ${certificate.certificateChain.length} cert(s)`);
+  sigLog(`[CertValidation]   - Chain validated: ${certificate.chainValidated}`);
 }
 
 // ============================================================================
@@ -662,7 +665,7 @@ export async function getDefaultSigningCertificate(orgId: string): Promise<Signi
   try {
     await ensureCertificateTable();
 
-    console.log('[getDefaultCert] Looking for default certificate for org:', orgId);
+    sigLog('[getDefaultCert] Looking for default certificate for org:', orgId);
 
     const result = await sql`
       SELECT * FROM signing_certificates
@@ -672,7 +675,7 @@ export async function getDefaultSigningCertificate(orgId: string): Promise<Signi
 
     if (result.length > 0) {
       const cert = mapCertificateFromDb(result[0]);
-      console.log('[getDefaultCert] Found certificate:', cert.subject.commonName,
+      sigLog('[getDefaultCert] Found certificate:', cert.subject.commonName,
         '| CA-issued:', cert.isCAIssued,
         '| Chain:', cert.certificateChain?.length || 0);
       return cert;
@@ -696,7 +699,7 @@ export async function getDefaultSigningCertificate(orgId: string): Promise<Signi
       );
     }
 
-    console.log(`[getDefaultCert] No certificates found for org ${orgId}, generating self-signed fallback`);
+    sigLog(`[getDefaultCert] No certificates found for org ${orgId}, generating self-signed fallback`);
     return await generateSigningCertificate({
       orgId,
       commonName: 'PearSign Digital Signature',
@@ -1232,10 +1235,10 @@ function encryptStringsInPdfObject(
  * This is a direct port of the library's encryption logic with custom permissions.
  */
 async function applyPdfEditRestrictions(pdfBytes: Uint8Array): Promise<Uint8Array> {
-  console.log('[EditRestrictions] ========================================');
-  console.log('[EditRestrictions] APPLYING PDF EDIT RESTRICTIONS');
-  console.log('[EditRestrictions] Using pdf-encrypt-lite approach with custom permissions');
-  console.log('[EditRestrictions] ========================================');
+  sigLog('[EditRestrictions] ========================================');
+  sigLog('[EditRestrictions] APPLYING PDF EDIT RESTRICTIONS');
+  sigLog('[EditRestrictions] Using pdf-encrypt-lite approach with custom permissions');
+  sigLog('[EditRestrictions] ========================================');
 
   try {
     // Load the PDF
@@ -1269,7 +1272,7 @@ async function applyPdfEditRestrictions(pdfBytes: Uint8Array): Promise<Uint8Arra
       (trailer as any).ID = [idHex1, idHex2];
     }
 
-    console.log(`[EditRestrictions] File ID: ${pdfBytesToHex(fileId).substring(0, 16)}...`);
+    sigLog(`[EditRestrictions] File ID: ${pdfBytesToHex(fileId).substring(0, 16)}...`);
 
     // Passwords
     const userPassword = '';  // Empty = no password prompt to open
@@ -1293,13 +1296,13 @@ async function applyPdfEditRestrictions(pdfBytes: Uint8Array): Promise<Uint8Arra
     // = 0xFFFFF0D4 in unsigned = -3884 in signed 32-bit
     const permissions = -3884;
 
-    console.log(`[EditRestrictions] Permissions: ${permissions}`);
-    console.log('[EditRestrictions] - Print: ALLOWED');
-    console.log('[EditRestrictions] - Modify: BLOCKED');
-    console.log('[EditRestrictions] - Copy: ALLOWED');
-    console.log('[EditRestrictions] - Annotations: BLOCKED');
-    console.log('[EditRestrictions] - Fill forms: BLOCKED');
-    console.log('[EditRestrictions] - Assemble: BLOCKED');
+    sigLog(`[EditRestrictions] Permissions: ${permissions}`);
+    sigLog('[EditRestrictions] - Print: ALLOWED');
+    sigLog('[EditRestrictions] - Modify: BLOCKED');
+    sigLog('[EditRestrictions] - Copy: ALLOWED');
+    sigLog('[EditRestrictions] - Annotations: BLOCKED');
+    sigLog('[EditRestrictions] - Fill forms: BLOCKED');
+    sigLog('[EditRestrictions] - Assemble: BLOCKED');
 
     // Standard PDF padding string
     const PADDING = new Uint8Array([
@@ -1435,12 +1438,12 @@ async function applyPdfEditRestrictions(pdfBytes: Uint8Array): Promise<Uint8Arra
     const encryptionKey = computeKey(userPassword, ownerKey, permissions, fileId);
     const userKey = computeU(encryptionKey, fileId);
 
-    console.log(`[EditRestrictions] O key: ${pdfBytesToHex(ownerKey).substring(0, 16)}...`);
-    console.log(`[EditRestrictions] U key: ${pdfBytesToHex(userKey).substring(0, 16)}...`);
-    console.log(`[EditRestrictions] Enc key: ${pdfBytesToHex(encryptionKey)}`);
+    sigLog(`[EditRestrictions] O key: ${pdfBytesToHex(ownerKey).substring(0, 16)}...`);
+    sigLog(`[EditRestrictions] U key: ${pdfBytesToHex(userKey).substring(0, 16)}...`);
+    sigLog(`[EditRestrictions] Enc key: ${pdfBytesToHex(encryptionKey)}`);
 
     // Encrypt all objects
-    console.log('[EditRestrictions] Encrypting all PDF objects...');
+    sigLog('[EditRestrictions] Encrypting all PDF objects...');
     const indirectObjects = context.enumerateIndirectObjects();
     let streamCount = 0;
     let stringCount = 0;
@@ -1471,7 +1474,7 @@ async function applyPdfEditRestrictions(pdfBytes: Uint8Array): Promise<Uint8Arra
       stringCount++;
     }
 
-    console.log(`[EditRestrictions] Encrypted ${streamCount} streams, processed ${stringCount} objects`);
+    sigLog(`[EditRestrictions] Encrypted ${streamCount} streams, processed ${stringCount} objects`);
 
     // Create /Encrypt dictionary
     const encryptDict = context.obj({
@@ -1494,17 +1497,17 @@ async function applyPdfEditRestrictions(pdfBytes: Uint8Array): Promise<Uint8Arra
       useObjectStreams: false
     });
 
-    console.log('[EditRestrictions] ========================================');
-    console.log('[EditRestrictions] ENCRYPTION COMPLETE');
-    console.log(`[EditRestrictions] Original: ${pdfBytes.length} bytes`);
-    console.log(`[EditRestrictions] Encrypted: ${encryptedBytes.length} bytes`);
-    console.log('[EditRestrictions] ========================================');
+    sigLog('[EditRestrictions] ========================================');
+    sigLog('[EditRestrictions] ENCRYPTION COMPLETE');
+    sigLog(`[EditRestrictions] Original: ${pdfBytes.length} bytes`);
+    sigLog(`[EditRestrictions] Encrypted: ${encryptedBytes.length} bytes`);
+    sigLog('[EditRestrictions] ========================================');
 
     return encryptedBytes;
 
   } catch (error) {
     console.error('[EditRestrictions] Encryption error:', error);
-    console.log('[EditRestrictions] Returning original PDF');
+    sigLog('[EditRestrictions] Returning original PDF');
     return pdfBytes;
   }
 }
@@ -1527,10 +1530,10 @@ function createPkcs7Signature(
   dataToSign: Buffer,
   signedAt: Date
 ): Buffer {
-  console.log('[PKCS7] ========================================');
-  console.log('[PKCS7] Creating PKCS#7 detached signature with FULL CERTIFICATE CHAIN');
-  console.log('[PKCS7] ========================================');
-  console.log(`[PKCS7] Data to sign: ${dataToSign.length} bytes`);
+  sigLog('[PKCS7] ========================================');
+  sigLog('[PKCS7] Creating PKCS#7 detached signature with FULL CERTIFICATE CHAIN');
+  sigLog('[PKCS7] ========================================');
+  sigLog(`[PKCS7] Data to sign: ${dataToSign.length} bytes`);
 
   const leafCert = forge.pki.certificateFromPem(certificate.certificate);
   const privateKey = decryptStoredPrivateKey(certificate.privateKey, CERT_ENCRYPTION_KEY);
@@ -1540,12 +1543,12 @@ function createPkcs7Signature(
   const leafIssuer = leafCert.issuer.getField('CN')?.value || 'Unknown';
   const leafSerial = leafCert.serialNumber;
 
-  console.log(`[PKCS7] Leaf certificate:`);
-  console.log(`[PKCS7]   Subject: ${leafSubject}`);
-  console.log(`[PKCS7]   Issuer: ${leafIssuer}`);
-  console.log(`[PKCS7]   Serial: ${leafSerial.substring(0, 20)}...`);
-  console.log(`[PKCS7]   Self-signed: ${certificate.isSelfSigned}`);
-  console.log(`[PKCS7]   CA-issued: ${certificate.isCAIssued}`);
+  sigLog(`[PKCS7] Leaf certificate:`);
+  sigLog(`[PKCS7]   Subject: ${leafSubject}`);
+  sigLog(`[PKCS7]   Issuer: ${leafIssuer}`);
+  sigLog(`[PKCS7]   Serial: ${leafSerial.substring(0, 20)}...`);
+  sigLog(`[PKCS7]   Self-signed: ${certificate.isSelfSigned}`);
+  sigLog(`[PKCS7]   CA-issued: ${certificate.isCAIssued}`);
 
   // Create PKCS#7 SignedData structure
   const p7 = forge.pkcs7.createSignedData();
@@ -1554,14 +1557,14 @@ function createPkcs7Signature(
   p7.content = forge.util.createBuffer(dataToSign.toString('binary'));
 
   // CRITICAL: Add leaf certificate FIRST
-  console.log('[PKCS7] Adding leaf certificate to PKCS#7...');
+  sigLog('[PKCS7] Adding leaf certificate to PKCS#7...');
   p7.addCertificate(leafCert);
 
   // CRITICAL: Add FULL certificate chain (intermediates + root)
   // This is REQUIRED for Adobe Acrobat to trust AATL certificates
   let chainCertCount = 0;
   if (certificate.certificateChain && certificate.certificateChain.length > 0) {
-    console.log(`[PKCS7] Adding ${certificate.certificateChain.length} chain certificate(s)...`);
+    sigLog(`[PKCS7] Adding ${certificate.certificateChain.length} chain certificate(s)...`);
 
     for (let i = 0; i < certificate.certificateChain.length; i++) {
       const chainCertPem = certificate.certificateChain[i];
@@ -1572,11 +1575,11 @@ function createPkcs7Signature(
 
         // Verify we're not adding the leaf cert again
         if (chainCert.serialNumber === leafSerial) {
-          console.log(`[PKCS7]   SKIP chain[${i}]: Duplicate of leaf certificate`);
+          sigLog(`[PKCS7]   SKIP chain[${i}]: Duplicate of leaf certificate`);
           continue;
         }
 
-        console.log(`[PKCS7]   Chain[${i}]: Subject="${chainSubject}", Issuer="${chainIssuer}"`);
+        sigLog(`[PKCS7]   Chain[${i}]: Subject="${chainSubject}", Issuer="${chainIssuer}"`);
         p7.addCertificate(chainCert);
         chainCertCount++;
       } catch (e) {
@@ -1584,7 +1587,7 @@ function createPkcs7Signature(
       }
     }
 
-    console.log(`[PKCS7] Successfully added ${chainCertCount} chain certificate(s)`);
+    sigLog(`[PKCS7] Successfully added ${chainCertCount} chain certificate(s)`);
   } else {
     console.warn('[PKCS7] WARNING: No certificate chain provided!');
     console.warn('[PKCS7] Adobe Acrobat may not trust this signature without the full chain.');
@@ -1592,7 +1595,7 @@ function createPkcs7Signature(
 
   // Log total certs in PKCS#7
   const totalCerts = 1 + chainCertCount; // leaf + chain
-  console.log(`[PKCS7] Total certificates in PKCS#7: ${totalCerts}`);
+  sigLog(`[PKCS7] Total certificates in PKCS#7: ${totalCerts}`);
 
   // Add signer with required authenticated attributes
   p7.addSigner({
@@ -1613,10 +1616,10 @@ function createPkcs7Signature(
   const derBytes = forge.asn1.toDer(p7.toAsn1()).getBytes();
   const signatureBuffer = Buffer.from(derBytes, 'binary');
 
-  console.log('[PKCS7] ========================================');
-  console.log(`[PKCS7] Signature created: ${signatureBuffer.length} bytes`);
-  console.log(`[PKCS7] Certificates embedded: ${totalCerts} (1 leaf + ${chainCertCount} chain)`);
-  console.log('[PKCS7] ========================================');
+  sigLog('[PKCS7] ========================================');
+  sigLog(`[PKCS7] Signature created: ${signatureBuffer.length} bytes`);
+  sigLog(`[PKCS7] Certificates embedded: ${totalCerts} (1 leaf + ${chainCertCount} chain)`);
+  sigLog('[PKCS7] ========================================');
 
   return signatureBuffer;
 }
@@ -1658,15 +1661,15 @@ async function applyApprovalSignature(
   reason?: string,
   signatureField?: SignatureFieldPosition
 ): Promise<Buffer> {
-  console.log('[ApprovalSig] ========================================');
-  console.log('[ApprovalSig] APPLYING APPROVAL SIGNATURE');
-  console.log('[ApprovalSig] ========================================');
+  sigLog('[ApprovalSig] ========================================');
+  sigLog('[ApprovalSig] APPLYING APPROVAL SIGNATURE');
+  sigLog('[ApprovalSig] ========================================');
 
   const originalPdf = pdfBytes;
   const originalLength = originalPdf.length;
   const pdfStr = originalPdf.toString('latin1');
 
-  console.log(`[ApprovalSig] Original PDF: ${originalLength} bytes`);
+  sigLog(`[ApprovalSig] Original PDF: ${originalLength} bytes`);
 
   // Parse PDF structure
   const maxObjNum = findMaxObjectNumber(originalPdf);
@@ -1677,14 +1680,14 @@ async function applyApprovalSignature(
   const pageNum = signatureField?.page || 1;
   const pageObjNum = findPageObjectNumber(originalPdf, pageNum);
 
-  console.log(`[ApprovalSig] Max object: ${maxObjNum}`);
-  console.log(`[ApprovalSig] Catalog: ${catalogObjNum}`);
-  console.log(`[ApprovalSig] Page ${pageNum}: object ${pageObjNum}`);
-  console.log(`[ApprovalSig] Prev xref: ${prevXref}`);
+  sigLog(`[ApprovalSig] Max object: ${maxObjNum}`);
+  sigLog(`[ApprovalSig] Catalog: ${catalogObjNum}`);
+  sigLog(`[ApprovalSig] Page ${pageNum}: object ${pageObjNum}`);
+  sigLog(`[ApprovalSig] Prev xref: ${prevXref}`);
 
   // Check for existing AcroForm
   const hasAcroForm = pdfStr.includes('/AcroForm');
-  console.log(`[ApprovalSig] Has existing AcroForm: ${hasAcroForm}`);
+  sigLog(`[ApprovalSig] Has existing AcroForm: ${hasAcroForm}`);
 
   // Allocate new object numbers
   const sigObjNum = maxObjNum + 1;
@@ -1692,10 +1695,10 @@ async function applyApprovalSignature(
   const widgetObjNum = maxObjNum + 3;
   const acroFormObjNum = maxObjNum + 4;
 
-  console.log(`[ApprovalSig] Sig object: ${sigObjNum}`);
-  console.log(`[ApprovalSig] Field object: ${fieldObjNum}`);
-  console.log(`[ApprovalSig] Widget object: ${widgetObjNum}`);
-  console.log(`[ApprovalSig] AcroForm object: ${acroFormObjNum}`);
+  sigLog(`[ApprovalSig] Sig object: ${sigObjNum}`);
+  sigLog(`[ApprovalSig] Field object: ${fieldObjNum}`);
+  sigLog(`[ApprovalSig] Widget object: ${widgetObjNum}`);
+  sigLog(`[ApprovalSig] AcroForm object: ${acroFormObjNum}`);
 
   // Build PDF date
   const pdfDate = formatPdfDate(signedAt);
@@ -1904,7 +1907,7 @@ async function applyApprovalSignature(
   }
 
   if (!catalogContent || !catalogContent.includes('/Pages')) {
-    console.log('[ApprovalSig] Strategy 1 failed, trying regex extraction for catalog entries...');
+    sigLog('[ApprovalSig] Strategy 1 failed, trying regex extraction for catalog entries...');
     const pagesRef = pdfStr.match(/\/Pages\s+(\d+)\s+0\s+R/);
     if (pagesRef) {
       const entries: string[] = [];
@@ -1929,7 +1932,7 @@ async function applyApprovalSignature(
       const pageModeMatch = pdfStr.match(/\/PageMode\s+\/(\w+)/);
       if (pageModeMatch) entries.push(`/PageMode /${pageModeMatch[1]}`);
       catalogContent = '\n' + entries.join('\n') + '\n';
-      console.log(`[ApprovalSig] Reconstructed catalog with ${entries.length} entries`);
+      sigLog(`[ApprovalSig] Reconstructed catalog with ${entries.length} entries`);
     }
   }
 
@@ -1974,13 +1977,13 @@ async function applyApprovalSignature(
 
   const xrefOffset = currentOffset;
 
-  console.log(`[ApprovalSig] Sig offset: ${sigObjOffset}`);
-  console.log(`[ApprovalSig] Field offset: ${fieldObjOffset}`);
-  console.log(`[ApprovalSig] Widget offset: ${widgetObjOffset}`);
-  console.log(`[ApprovalSig] AcroForm offset: ${acroFormObjOffset}`);
-  console.log(`[ApprovalSig] Page offset: ${pageObjOffset}`);
-  console.log(`[ApprovalSig] Catalog offset: ${catalogObjOffset}`);
-  console.log(`[ApprovalSig] xref offset: ${xrefOffset}`);
+  sigLog(`[ApprovalSig] Sig offset: ${sigObjOffset}`);
+  sigLog(`[ApprovalSig] Field offset: ${fieldObjOffset}`);
+  sigLog(`[ApprovalSig] Widget offset: ${widgetObjOffset}`);
+  sigLog(`[ApprovalSig] AcroForm offset: ${acroFormObjOffset}`);
+  sigLog(`[ApprovalSig] Page offset: ${pageObjOffset}`);
+  sigLog(`[ApprovalSig] Catalog offset: ${catalogObjOffset}`);
+  sigLog(`[ApprovalSig] xref offset: ${xrefOffset}`);
 
   // ============================================================================
   // BUILD XREF TABLE
@@ -2036,8 +2039,8 @@ async function applyApprovalSignature(
   const pdf = Buffer.concat([originalPdf, incrementalBuffer]);
   const totalLength = pdf.length;
 
-  console.log(`[ApprovalSig] Incremental update: ${incrementalBuffer.length} bytes`);
-  console.log(`[ApprovalSig] Total PDF: ${totalLength} bytes`);
+  sigLog(`[ApprovalSig] Incremental update: ${incrementalBuffer.length} bytes`);
+  sigLog(`[ApprovalSig] Total PDF: ${totalLength} bytes`);
 
   // ============================================================================
   // FIND /Contents AND CALCULATE ByteRange
@@ -2068,7 +2071,7 @@ async function applyApprovalSignature(
     totalLength - angleBracketClosePos
   ];
 
-  console.log(`[ApprovalSig] ByteRange: [${byteRange.join(', ')}]`);
+  sigLog(`[ApprovalSig] ByteRange: [${byteRange.join(', ')}]`);
 
   // Verify ByteRange boundaries
   if (pdf[hexDataStartPos - 1] !== 0x3C) {  // '<' = 0x3C
@@ -2078,9 +2081,9 @@ async function applyApprovalSignature(
     throw new Error(`ByteRange error: expected '>' at ${angleBracketClosePos}, found 0x${pdf[angleBracketClosePos].toString(16)}`);
   }
 
-  console.log('[ApprovalSig] ✓ ByteRange boundaries verified');
-  console.log(`[ApprovalSig]   First segment ends with '<' at byte ${hexDataStartPos - 1}`);
-  console.log(`[ApprovalSig]   Second segment starts with '>' at byte ${angleBracketClosePos}`);
+  sigLog('[ApprovalSig] ✓ ByteRange boundaries verified');
+  sigLog(`[ApprovalSig]   First segment ends with '<' at byte ${hexDataStartPos - 1}`);
+  sigLog(`[ApprovalSig]   Second segment starts with '>' at byte ${angleBracketClosePos}`);
 
   // ============================================================================
   // UPDATE ByteRange IN PDF
@@ -2098,7 +2101,7 @@ async function applyApprovalSignature(
   const byteRangeValueOffset = byteRangeMarkerPos + 12;  // After '/ByteRange ['
   Buffer.from(byteRangeStr, 'latin1').copy(pdf, byteRangeValueOffset);
 
-  console.log(`[ApprovalSig] ByteRange updated at offset ${byteRangeMarkerPos}`);
+  sigLog(`[ApprovalSig] ByteRange updated at offset ${byteRangeMarkerPos}`);
 
   // ============================================================================
   // CALCULATE HASH AND CREATE PKCS#7 SIGNATURE
@@ -2109,13 +2112,13 @@ async function applyApprovalSignature(
   const segment2 = pdf.subarray(byteRange[2], byteRange[2] + byteRange[3]);
   const dataToHash = Buffer.concat([segment1, segment2]);
 
-  console.log(`[ApprovalSig] Segment 1: ${segment1.length} bytes (0 to ${byteRange[1]})`);
-  console.log(`[ApprovalSig] Segment 2: ${segment2.length} bytes (${byteRange[2]} to ${byteRange[2] + byteRange[3]})`);
-  console.log(`[ApprovalSig] Total data to hash: ${dataToHash.length} bytes`);
+  sigLog(`[ApprovalSig] Segment 1: ${segment1.length} bytes (0 to ${byteRange[1]})`);
+  sigLog(`[ApprovalSig] Segment 2: ${segment2.length} bytes (${byteRange[2]} to ${byteRange[2] + byteRange[3]})`);
+  sigLog(`[ApprovalSig] Total data to hash: ${dataToHash.length} bytes`);
 
   // Create PKCS#7 signature
   const pkcs7Signature = createPkcs7Signature(certificate, dataToHash, signedAt);
-  console.log(`[ApprovalSig] PKCS#7 signature: ${pkcs7Signature.length} bytes`);
+  sigLog(`[ApprovalSig] PKCS#7 signature: ${pkcs7Signature.length} bytes`);
 
   if (pkcs7Signature.length > SIGNATURE_LENGTH) {
     throw new Error(`Signature too large: ${pkcs7Signature.length} > ${SIGNATURE_LENGTH}`);
@@ -2129,7 +2132,7 @@ async function applyApprovalSignature(
   const paddedSignatureHex = signatureHex.padEnd(SIGNATURE_PLACEHOLDER.length, '0');
   Buffer.from(paddedSignatureHex, 'latin1').copy(pdf, hexDataStartPos);
 
-  console.log(`[ApprovalSig] Signature inserted at offset ${hexDataStartPos}`);
+  sigLog(`[ApprovalSig] Signature inserted at offset ${hexDataStartPos}`);
 
   // ============================================================================
   // FINAL VERIFICATION
@@ -2166,18 +2169,18 @@ async function applyApprovalSignature(
     throw new Error('VERIFICATION FAILED: Missing signature field /FT /Sig');
   }
 
-  console.log('[ApprovalSig] ========================================');
-  console.log('[ApprovalSig] VERIFICATION PASSED');
-  console.log('[ApprovalSig] ✓ /Type /Sig present');
-  console.log('[ApprovalSig] ✓ /SubFilter /adbe.pkcs7.detached present');
-  console.log('[ApprovalSig] ✓ /AcroForm with /SigFlags 3 present');
-  console.log('[ApprovalSig] ✓ Signature field /FT /Sig present');
-  console.log('[ApprovalSig] ✓ NO /DocMDP (correct for approval signature)');
-  console.log('[ApprovalSig] ✓ NO /Perms in catalog (correct for approval signature)');
-  console.log('[ApprovalSig] ========================================');
-  console.log('[ApprovalSig] APPROVAL SIGNATURE COMPLETE');
-  console.log(`[ApprovalSig] Final PDF size: ${pdf.length} bytes`);
-  console.log('[ApprovalSig] ========================================');
+  sigLog('[ApprovalSig] ========================================');
+  sigLog('[ApprovalSig] VERIFICATION PASSED');
+  sigLog('[ApprovalSig] ✓ /Type /Sig present');
+  sigLog('[ApprovalSig] ✓ /SubFilter /adbe.pkcs7.detached present');
+  sigLog('[ApprovalSig] ✓ /AcroForm with /SigFlags 3 present');
+  sigLog('[ApprovalSig] ✓ Signature field /FT /Sig present');
+  sigLog('[ApprovalSig] ✓ NO /DocMDP (correct for approval signature)');
+  sigLog('[ApprovalSig] ✓ NO /Perms in catalog (correct for approval signature)');
+  sigLog('[ApprovalSig] ========================================');
+  sigLog('[ApprovalSig] APPROVAL SIGNATURE COMPLETE');
+  sigLog(`[ApprovalSig] Final PDF size: ${pdf.length} bytes`);
+  sigLog('[ApprovalSig] ========================================');
 
   return pdf;
 }
@@ -2218,13 +2221,13 @@ async function applyCertificationSignature(
   signatureField?: SignatureFieldPosition,
   permissionLevel: 1 | 2 | 3 = 1  // 1=no changes, 2=form fill, 3=annot+form
 ): Promise<Buffer> {
-  console.log('[CertSig] ========================================');
-  console.log('[CertSig] APPLYING CERTIFICATION SIGNATURE (DocMDP)');
-  console.log('[CertSig] ========================================');
-  console.log(`[CertSig] Permission level: ${permissionLevel}`);
-  console.log(`[CertSig]   1 = No changes allowed`);
-  console.log(`[CertSig]   2 = Form filling only`);
-  console.log(`[CertSig]   3 = Annotations and form filling`);
+  sigLog('[CertSig] ========================================');
+  sigLog('[CertSig] APPLYING CERTIFICATION SIGNATURE (DocMDP)');
+  sigLog('[CertSig] ========================================');
+  sigLog(`[CertSig] Permission level: ${permissionLevel}`);
+  sigLog(`[CertSig]   1 = No changes allowed`);
+  sigLog(`[CertSig]   2 = Form filling only`);
+  sigLog(`[CertSig]   3 = Annotations and form filling`);
 
   // CRITICAL: Validate certificate is suitable for certification
   if (certificate.isSelfSigned) {
@@ -2243,7 +2246,7 @@ async function applyCertificationSignature(
   const originalLength = originalPdf.length;
   const pdfStr = originalPdf.toString('latin1');
 
-  console.log(`[CertSig] Original PDF: ${originalLength} bytes`);
+  sigLog(`[CertSig] Original PDF: ${originalLength} bytes`);
 
   // Parse PDF structure
   const maxObjNum = findMaxObjectNumber(originalPdf);
@@ -2254,10 +2257,10 @@ async function applyCertificationSignature(
   const pageNum = signatureField?.page || 1;
   const pageObjNum = findPageObjectNumber(originalPdf, pageNum);
 
-  console.log(`[CertSig] Max object: ${maxObjNum}`);
-  console.log(`[CertSig] Catalog: ${catalogObjNum}`);
-  console.log(`[CertSig] Page ${pageNum}: object ${pageObjNum}`);
-  console.log(`[CertSig] Prev xref: ${prevXref}`);
+  sigLog(`[CertSig] Max object: ${maxObjNum}`);
+  sigLog(`[CertSig] Catalog: ${catalogObjNum}`);
+  sigLog(`[CertSig] Page ${pageNum}: object ${pageObjNum}`);
+  sigLog(`[CertSig] Prev xref: ${prevXref}`);
 
   // Allocate new object numbers
   const sigObjNum = maxObjNum + 1;
@@ -2266,11 +2269,11 @@ async function applyCertificationSignature(
   const acroFormObjNum = maxObjNum + 4;
   const transformObjNum = maxObjNum + 5;  // DocMDP TransformParams
 
-  console.log(`[CertSig] Sig object: ${sigObjNum}`);
-  console.log(`[CertSig] Field object: ${fieldObjNum}`);
-  console.log(`[CertSig] Widget object: ${widgetObjNum}`);
-  console.log(`[CertSig] AcroForm object: ${acroFormObjNum}`);
-  console.log(`[CertSig] Transform object: ${transformObjNum}`);
+  sigLog(`[CertSig] Sig object: ${sigObjNum}`);
+  sigLog(`[CertSig] Field object: ${fieldObjNum}`);
+  sigLog(`[CertSig] Widget object: ${widgetObjNum}`);
+  sigLog(`[CertSig] AcroForm object: ${acroFormObjNum}`);
+  sigLog(`[CertSig] Transform object: ${transformObjNum}`);
 
   // Build PDF date
   const pdfDate = formatPdfDate(signedAt);
@@ -2501,7 +2504,7 @@ async function applyCertificationSignature(
 
   // Strategy 2: If direct parsing fails, extract essential refs with regex
   if (!catalogContent || !catalogContent.includes('/Pages')) {
-    console.log('[CertSig] Strategy 1 failed, trying regex extraction for catalog entries...');
+    sigLog('[CertSig] Strategy 1 failed, trying regex extraction for catalog entries...');
     const pagesRef = pdfStr.match(/\/Pages\s+(\d+)\s+0\s+R/);
     if (pagesRef) {
       const entries: string[] = [];
@@ -2536,7 +2539,7 @@ async function applyCertificationSignature(
       if (pageModeMatch) entries.push(`/PageMode /${pageModeMatch[1]}`);
       
       catalogContent = '\n' + entries.join('\n') + '\n';
-      console.log(`[CertSig] Reconstructed catalog with ${entries.length} entries`);
+      sigLog(`[CertSig] Reconstructed catalog with ${entries.length} entries`);
     }
   }
 
@@ -2545,7 +2548,7 @@ async function applyCertificationSignature(
     throw new Error('Could not parse catalog from PDF');
   }
 
-  console.log(`[CertSig] Catalog content parsed successfully (${catalogContent.length} chars)`);
+  sigLog(`[CertSig] Catalog content parsed successfully (${catalogContent.length} chars)`);
 
   // Build updated catalog with AcroForm AND Perms
   let updatedCatalog = `${catalogObjNum} 0 obj\n<<`;
@@ -2587,9 +2590,9 @@ async function applyCertificationSignature(
 
   const xrefOffset = currentOffset;
 
-  console.log(`[CertSig] Transform offset: ${transformObjOffset}`);
-  console.log(`[CertSig] Sig offset: ${sigObjOffset}`);
-  console.log(`[CertSig] xref offset: ${xrefOffset}`);
+  sigLog(`[CertSig] Transform offset: ${transformObjOffset}`);
+  sigLog(`[CertSig] Sig offset: ${sigObjOffset}`);
+  sigLog(`[CertSig] xref offset: ${xrefOffset}`);
 
   // ============================================================================
   // BUILD XREF TABLE
@@ -2648,8 +2651,8 @@ async function applyCertificationSignature(
   const pdf = Buffer.concat([originalPdf, incrementalBuffer]);
   const totalLength = pdf.length;
 
-  console.log(`[CertSig] Incremental update: ${incrementalBuffer.length} bytes`);
-  console.log(`[CertSig] Total PDF: ${totalLength} bytes`);
+  sigLog(`[CertSig] Incremental update: ${incrementalBuffer.length} bytes`);
+  sigLog(`[CertSig] Total PDF: ${totalLength} bytes`);
 
   // ============================================================================
   // FIND /Contents AND CALCULATE ByteRange
@@ -2675,7 +2678,7 @@ async function applyCertificationSignature(
     totalLength - angleBracketClosePos
   ];
 
-  console.log(`[CertSig] ByteRange: [${byteRange.join(', ')}]`);
+  sigLog(`[CertSig] ByteRange: [${byteRange.join(', ')}]`);
 
   // Verify ByteRange boundaries
   if (pdf[hexDataStartPos - 1] !== 0x3C) {
@@ -2708,10 +2711,10 @@ async function applyCertificationSignature(
   const segment2 = pdf.subarray(byteRange[2], byteRange[2] + byteRange[3]);
   const dataToHash = Buffer.concat([segment1, segment2]);
 
-  console.log(`[CertSig] Data to hash: ${dataToHash.length} bytes`);
+  sigLog(`[CertSig] Data to hash: ${dataToHash.length} bytes`);
 
   const pkcs7Signature = createPkcs7Signature(certificate, dataToHash, signedAt);
-  console.log(`[CertSig] PKCS#7 signature: ${pkcs7Signature.length} bytes`);
+  sigLog(`[CertSig] PKCS#7 signature: ${pkcs7Signature.length} bytes`);
 
   if (pkcs7Signature.length > SIGNATURE_LENGTH) {
     throw new Error(`Signature too large: ${pkcs7Signature.length} > ${SIGNATURE_LENGTH}`);
@@ -2748,17 +2751,17 @@ async function applyCertificationSignature(
     throw new Error('CERTIFICATION FAILED: Missing /Reference array');
   }
 
-  console.log('[CertSig] ========================================');
-  console.log('[CertSig] CERTIFICATION VERIFICATION PASSED');
-  console.log('[CertSig] ✓ /Type /Sig present');
-  console.log('[CertSig] ✓ /Reference array present');
-  console.log('[CertSig] ✓ /TransformMethod /DocMDP present');
-  console.log('[CertSig] ✓ /Perms /DocMDP in catalog present');
-  console.log(`[CertSig] ✓ Permission level: ${permissionLevel}`);
-  console.log('[CertSig] ========================================');
-  console.log('[CertSig] CERTIFICATION SIGNATURE COMPLETE');
-  console.log(`[CertSig] Final PDF size: ${pdf.length} bytes`);
-  console.log('[CertSig] ========================================');
+  sigLog('[CertSig] ========================================');
+  sigLog('[CertSig] CERTIFICATION VERIFICATION PASSED');
+  sigLog('[CertSig] ✓ /Type /Sig present');
+  sigLog('[CertSig] ✓ /Reference array present');
+  sigLog('[CertSig] ✓ /TransformMethod /DocMDP present');
+  sigLog('[CertSig] ✓ /Perms /DocMDP in catalog present');
+  sigLog(`[CertSig] ✓ Permission level: ${permissionLevel}`);
+  sigLog('[CertSig] ========================================');
+  sigLog('[CertSig] CERTIFICATION SIGNATURE COMPLETE');
+  sigLog(`[CertSig] Final PDF size: ${pdf.length} bytes`);
+  sigLog('[CertSig] ========================================');
 
   return pdf;
 }
@@ -2779,32 +2782,32 @@ export async function applyDigitalSignatureSimple(
   isCertification: boolean = false  // true = certification, false = approval
 ): Promise<Uint8Array> {
   // ==================== TEMP VERIFICATION LOGS (REMOVE AFTER CONFIRMATION) ====================
-  console.log('[SIGNING CERT] ========================================');
-  console.log('[SIGNING CERT] Subject:', JSON.stringify(certificate.subject));
-  console.log('[SIGNING CERT] Issuer:', JSON.stringify(certificate.issuer));
-  console.log('[SIGNING CERT] Serial:', certificate.serialNumber);
-  console.log('[SIGNING CERT] IsSelfSigned:', certificate.isSelfSigned);
-  console.log('[SIGNING CERT] IsCAIssued:', certificate.isCAIssued);
-  console.log('[SIGNING CERT] ChainCount:', certificate.certificateChain?.length || 0);
-  console.log('[SIGNING CERT] ChainValidated:', certificate.chainValidated);
-  console.log('[SIGNING CERT] Fingerprint:', certificate.fingerprint?.substring(0, 32) + '...');
-  console.log('[SIGNING CERT] ValidFrom:', certificate.validFrom);
-  console.log('[SIGNING CERT] ValidTo:', certificate.validTo);
-  console.log('[SIGNING CERT] ========================================');
+  sigLog('[SIGNING CERT] ========================================');
+  sigLog('[SIGNING CERT] Subject:', JSON.stringify(certificate.subject));
+  sigLog('[SIGNING CERT] Issuer:', JSON.stringify(certificate.issuer));
+  sigLog('[SIGNING CERT] Serial:', certificate.serialNumber);
+  sigLog('[SIGNING CERT] IsSelfSigned:', certificate.isSelfSigned);
+  sigLog('[SIGNING CERT] IsCAIssued:', certificate.isCAIssued);
+  sigLog('[SIGNING CERT] ChainCount:', certificate.certificateChain?.length || 0);
+  sigLog('[SIGNING CERT] ChainValidated:', certificate.chainValidated);
+  sigLog('[SIGNING CERT] Fingerprint:', certificate.fingerprint?.substring(0, 32) + '...');
+  sigLog('[SIGNING CERT] ValidFrom:', certificate.validFrom);
+  sigLog('[SIGNING CERT] ValidTo:', certificate.validTo);
+  sigLog('[SIGNING CERT] ========================================');
 
   // Log signature mode
   const signatureMode = isCertification ? 'CERTIFICATION' : 'APPROVAL';
-  console.log('[SIGNATURE MODE] SignatureMode:', signatureMode);
-  console.log('[SIGNATURE MODE] isCertification parameter:', isCertification);
+  sigLog('[SIGNATURE MODE] SignatureMode:', signatureMode);
+  sigLog('[SIGNATURE MODE] isCertification parameter:', isCertification);
   // ==================== END TEMP VERIFICATION LOGS ====================
 
   // ============================================================================
   // CERTIFICATION SIGNATURE MODE
   // ============================================================================
   if (isCertification) {
-    console.log('[DigitalSignature] ========================================');
-    console.log('[DigitalSignature] APPLYING CERTIFICATION SIGNATURE (DocMDP)');
-    console.log('[DigitalSignature] ========================================');
+    sigLog('[DigitalSignature] ========================================');
+    sigLog('[DigitalSignature] APPLYING CERTIFICATION SIGNATURE (DocMDP)');
+    sigLog('[DigitalSignature] ========================================');
 
     // Validate certificate is suitable for certification
     if (certificate.isSelfSigned) {
@@ -2830,9 +2833,9 @@ export async function applyDigitalSignatureSimple(
   // ============================================================================
   // APPROVAL SIGNATURE MODE (default)
   // ============================================================================
-  console.log('[DigitalSignature] ========================================');
-  console.log('[DigitalSignature] APPLYING APPROVAL SIGNATURE');
-  console.log('[DigitalSignature] ========================================');
+  sigLog('[DigitalSignature] ========================================');
+  sigLog('[DigitalSignature] APPLYING APPROVAL SIGNATURE');
+  sigLog('[DigitalSignature] ========================================');
 
   try {
     // Use the professional @signpdf library for Adobe-compatible approval signatures
@@ -2881,10 +2884,10 @@ async function applyCertificationWithPdfLib(
   signatureField?: SignatureFieldPosition,
   permissionLevel: number = 1
 ): Promise<Uint8Array> {
-  console.log('[CertPdfLib] ========================================');
-  console.log('[CertPdfLib] APPLYING CERTIFICATION SIGNATURE via pdf-lib');
-  console.log(`[CertPdfLib] Permission level: ${permissionLevel}`);
-  console.log('[CertPdfLib] ========================================');
+  sigLog('[CertPdfLib] ========================================');
+  sigLog('[CertPdfLib] APPLYING CERTIFICATION SIGNATURE via pdf-lib');
+  sigLog(`[CertPdfLib] Permission level: ${permissionLevel}`);
+  sigLog('[CertPdfLib] ========================================');
 
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
@@ -2901,7 +2904,7 @@ async function applyCertificationWithPdfLib(
     ];
   }
 
-  console.log(`[CertPdfLib] Widget rect: [${widgetRect.join(', ')}]`);
+  sigLog(`[CertPdfLib] Widget rect: [${widgetRect.join(', ')}]`);
 
   const DEFAULT_BYTE_RANGE_PLACEHOLDER = '**********';
   const SIGNATURE_LENGTH = 16384;
@@ -2955,7 +2958,7 @@ async function applyCertificationWithPdfLib(
   const signatureObj = PDFInvalidObject.of(signatureBuffer);
   const signatureDictRef = pdfDoc.context.register(signatureObj);
 
-  console.log('[CertPdfLib] Signature dict created with DocMDP /Reference (using PDFName)');
+  sigLog('[CertPdfLib] Signature dict created with DocMDP /Reference (using PDFName)');
 
   const rect = PDFArray.withContext(pdfDoc.context);
   widgetRect.forEach(c => rect.push(PDFNumber.of(c)));
@@ -3014,21 +3017,21 @@ async function applyCertificationWithPdfLib(
   permsDict.set(PDFName.of('DocMDP'), signatureDictRef);
   pdfDoc.catalog.set(PDFName.of('Perms'), permsDict);
 
-  console.log('[CertPdfLib] Catalog updated with /Perms /DocMDP');
+  sigLog('[CertPdfLib] Catalog updated with /Perms /DocMDP');
 
   const pdfWithPlaceholder = await pdfDoc.save({ useObjectStreams: false });
-  console.log(`[CertPdfLib] PDF with placeholder: ${pdfWithPlaceholder.length} bytes`);
+  sigLog(`[CertPdfLib] PDF with placeholder: ${pdfWithPlaceholder.length} bytes`);
 
   const p12Buffer = createP12FromCertificate(certificate);
   const signer = new P12Signer(p12Buffer, { passphrase: '' });
 
-  console.log('[CertPdfLib] Signing with P12...');
+  sigLog('[CertPdfLib] Signing with P12...');
   const signedPdfBuffer = await signpdf.sign(Buffer.from(pdfWithPlaceholder), signer);
 
-  console.log('[CertPdfLib] ========================================');
-  console.log('[CertPdfLib] CERTIFICATION SIGNATURE APPLIED SUCCESSFULLY');
-  console.log(`[CertPdfLib] Signed PDF size: ${signedPdfBuffer.length} bytes`);
-  console.log('[CertPdfLib] ========================================');
+  sigLog('[CertPdfLib] ========================================');
+  sigLog('[CertPdfLib] CERTIFICATION SIGNATURE APPLIED SUCCESSFULLY');
+  sigLog(`[CertPdfLib] Signed PDF size: ${signedPdfBuffer.length} bytes`);
+  sigLog('[CertPdfLib] ========================================');
 
   return new Uint8Array(signedPdfBuffer);
 }
@@ -3045,7 +3048,7 @@ async function applySignatureWithSignpdf(
   reason?: string,
   signatureField?: SignatureFieldPosition
 ): Promise<Uint8Array> {
-  console.log('[SignPdf] Loading PDF document...');
+  sigLog('[SignPdf] Loading PDF document...');
 
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
@@ -3062,8 +3065,8 @@ async function applySignatureWithSignpdf(
     ];
   }
 
-  console.log('[SignPdf] Adding signature placeholder...');
-  console.log(`[SignPdf] Widget rect: [${widgetRect.join(', ')}]`);
+  sigLog('[SignPdf] Adding signature placeholder...');
+  sigLog(`[SignPdf] Widget rect: [${widgetRect.join(', ')}]`);
 
   pdflibAddPlaceholder({
     pdfDoc,
@@ -3078,18 +3081,18 @@ async function applySignatureWithSignpdf(
   });
 
   const pdfWithPlaceholder = await pdfDoc.save({ useObjectStreams: false });
-  console.log(`[SignPdf] PDF with placeholder: ${pdfWithPlaceholder.length} bytes`);
+  sigLog(`[SignPdf] PDF with placeholder: ${pdfWithPlaceholder.length} bytes`);
 
   const p12Buffer = createP12FromCertificate(certificate);
   const signer = new P12Signer(p12Buffer, { passphrase: '' });
 
-  console.log('[SignPdf] Signing PDF...');
+  sigLog('[SignPdf] Signing PDF...');
   const signedPdfBuffer = await signpdf.sign(Buffer.from(pdfWithPlaceholder), signer);
 
-  console.log('[SignPdf] ========================================');
-  console.log('[SignPdf] SIGNATURE APPLIED SUCCESSFULLY');
-  console.log(`[SignPdf] Signed PDF size: ${signedPdfBuffer.length} bytes`);
-  console.log('[SignPdf] ========================================');
+  sigLog('[SignPdf] ========================================');
+  sigLog('[SignPdf] SIGNATURE APPLIED SUCCESSFULLY');
+  sigLog(`[SignPdf] Signed PDF size: ${signedPdfBuffer.length} bytes`);
+  sigLog('[SignPdf] ========================================');
 
   return new Uint8Array(signedPdfBuffer);
 }
@@ -3101,25 +3104,25 @@ async function applySignatureWithSignpdf(
  * The P12 must include the complete certificate chain for Adobe to trust the signature
  */
 function createP12FromCertificate(certificate: SigningCertificate): Buffer {
-  console.log('[P12] ========================================');
-  console.log('[P12] Creating P12/PFX with FULL CERTIFICATE CHAIN');
-  console.log('[P12] ========================================');
+  sigLog('[P12] ========================================');
+  sigLog('[P12] Creating P12/PFX with FULL CERTIFICATE CHAIN');
+  sigLog('[P12] ========================================');
 
   const leafCert = forge.pki.certificateFromPem(certificate.certificate);
   const privateKey = decryptStoredPrivateKey(certificate.privateKey, CERT_ENCRYPTION_KEY);
 
   // Log leaf certificate info
   const leafSubject = leafCert.subject.getField('CN')?.value || 'Unknown';
-  console.log(`[P12] Leaf certificate: ${leafSubject}`);
-  console.log(`[P12] Self-signed: ${certificate.isSelfSigned}`);
-  console.log(`[P12] CA-issued: ${certificate.isCAIssued}`);
+  sigLog(`[P12] Leaf certificate: ${leafSubject}`);
+  sigLog(`[P12] Self-signed: ${certificate.isSelfSigned}`);
+  sigLog(`[P12] CA-issued: ${certificate.isCAIssued}`);
 
   // Build certificate array: leaf first, then chain
   const certs: forge.pki.Certificate[] = [leafCert];
 
   // CRITICAL: Include full certificate chain (intermediates + root)
   if (certificate.certificateChain && certificate.certificateChain.length > 0) {
-    console.log(`[P12] Adding ${certificate.certificateChain.length} chain certificate(s)...`);
+    sigLog(`[P12] Adding ${certificate.certificateChain.length} chain certificate(s)...`);
 
     for (let i = 0; i < certificate.certificateChain.length; i++) {
       const chainCertPem = certificate.certificateChain[i];
@@ -3130,11 +3133,11 @@ function createP12FromCertificate(certificate: SigningCertificate): Buffer {
 
         // Don't add duplicate of leaf
         if (chainCert.serialNumber === leafCert.serialNumber) {
-          console.log(`[P12]   SKIP chain[${i}]: Duplicate of leaf certificate`);
+          sigLog(`[P12]   SKIP chain[${i}]: Duplicate of leaf certificate`);
           continue;
         }
 
-        console.log(`[P12]   Chain[${i}]: Subject="${chainSubject}", Issuer="${chainIssuer}"`);
+        sigLog(`[P12]   Chain[${i}]: Subject="${chainSubject}", Issuer="${chainIssuer}"`);
         certs.push(chainCert);
       } catch (e) {
         console.error(`[P12]   FAILED to add chain cert ${i}:`, e);
@@ -3145,7 +3148,7 @@ function createP12FromCertificate(certificate: SigningCertificate): Buffer {
     console.warn('[P12] Adobe Acrobat may not trust this signature without the full chain.');
   }
 
-  console.log(`[P12] Total certificates in P12: ${certs.length}`);
+  sigLog(`[P12] Total certificates in P12: ${certs.length}`);
 
   // Create PKCS#12 (P12/PFX) structure with all certificates
   const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
@@ -3159,10 +3162,10 @@ function createP12FromCertificate(certificate: SigningCertificate): Buffer {
   const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
   const p12Buffer = Buffer.from(p12Der, 'binary');
 
-  console.log('[P12] ========================================');
-  console.log(`[P12] P12/PFX created: ${p12Buffer.length} bytes`);
-  console.log(`[P12] Certificates included: ${certs.length}`);
-  console.log('[P12] ========================================');
+  sigLog('[P12] ========================================');
+  sigLog(`[P12] P12/PFX created: ${p12Buffer.length} bytes`);
+  sigLog(`[P12] Certificates included: ${certs.length}`);
+  sigLog('[P12] ========================================');
 
   return p12Buffer;
 }
@@ -3195,14 +3198,14 @@ export async function signPdfDocument(options: {
     throw new Error('Failed to get or create signing certificate');
   }
 
-  console.log('[signPdfDocument] Using certificate:', certificate.subject.commonName,
+  sigLog('[signPdfDocument] Using certificate:', certificate.subject.commonName,
     '| CA-issued:', certificate.isCAIssued, '| Chain:', certificate.certificateChain?.length || 0);
 
   const firstField = signatureFields && signatureFields.length > 0 ? signatureFields[0] : undefined;
 
   const useCertificationMode = certificate.isCAIssued && !certificate.isSelfSigned;
 
-  console.log('[signPdfDocument] Signature mode:', useCertificationMode ? 'CERTIFICATION (DocMDP)' : 'APPROVAL');
+  sigLog('[signPdfDocument] Signature mode:', useCertificationMode ? 'CERTIFICATION (DocMDP)' : 'APPROVAL');
 
   const signedPdfBytes = await applyDigitalSignatureSimple(
     pdfBytes,

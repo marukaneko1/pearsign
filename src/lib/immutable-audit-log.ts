@@ -169,7 +169,7 @@ export const ImmutableAuditLogService = {
       // Rule might already exist or be unsupported
     }
 
-    console.log('[ImmutableAuditLog] Table initialized with protection rules');
+    if (process.env.NODE_ENV !== 'production') console.log('[ImmutableAuditLog] Table initialized with protection rules');
   },
 
   /**

@@ -244,6 +244,102 @@ const getActionDisplay = (action: string, details: Record<string, unknown> = {})
       bgColor: 'bg-gray-100 dark:bg-gray-800',
       category: 'System'
     },
+    'auth.password_changed': {
+      label: 'Password Changed',
+      description: signerName
+        ? `${signerName} changed their password`
+        : `Account password was changed`,
+      icon: Settings,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+      category: 'Security'
+    },
+    'auth.2fa_enabled': {
+      label: '2FA Enabled',
+      description: signerName
+        ? `${signerName} enabled two-factor authentication`
+        : `Two-factor authentication was enabled`,
+      icon: Settings,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100 dark:bg-green-900/30',
+      category: 'Security'
+    },
+    'auth.2fa_disabled': {
+      label: '2FA Disabled',
+      description: signerName
+        ? `${signerName} disabled two-factor authentication`
+        : `Two-factor authentication was disabled`,
+      icon: AlertTriangle,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100 dark:bg-orange-900/30',
+      category: 'Security'
+    },
+    'template.activated': {
+      label: 'Template Activated',
+      description: `Template "${documentName}" was set to active`,
+      icon: FileCheck,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100 dark:bg-green-900/30',
+      category: 'Template'
+    },
+    'template.deactivated': {
+      label: 'Template Deactivated',
+      description: `Template "${documentName}" was deactivated`,
+      icon: FileCheck,
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100 dark:bg-gray-800',
+      category: 'Template'
+    },
+    'template.duplicated': {
+      label: 'Template Duplicated',
+      description: `Template "${documentName}" was duplicated`,
+      icon: FileCheck,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+      category: 'Template'
+    },
+    'api_key.created': {
+      label: 'API Key Created',
+      description: `A new API key was created`,
+      icon: Settings,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+      category: 'Settings'
+    },
+    'api_key.revoked': {
+      label: 'API Key Revoked',
+      description: `An API key was revoked`,
+      icon: Ban,
+      color: 'text-red-600',
+      bgColor: 'bg-red-100 dark:bg-red-900/30',
+      category: 'Settings'
+    },
+    'invoice.created': {
+      label: 'Invoice Created',
+      description: `A new invoice was created`,
+      icon: FileText,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+      category: 'Invoice'
+    },
+    'invoice.sent': {
+      label: 'Invoice Sent',
+      description: signerEmail
+        ? `Invoice sent to ${signerName || signerEmail}`
+        : `An invoice was sent`,
+      icon: Send,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+      category: 'Invoice'
+    },
+    'invoice.paid': {
+      label: 'Invoice Paid',
+      description: `Invoice was marked as paid`,
+      icon: CheckCircle2,
+      color: 'text-green-700',
+      bgColor: 'bg-green-100 dark:bg-green-900/30',
+      category: 'Invoice'
+    },
   };
 
   return actionMap[action] || {
@@ -343,9 +439,9 @@ export function ActivityPage() {
     loadLogs();
   }, [loadLogs]);
 
-  // Calculate stats
+  // Calculate stats using the API-reported total (not just current page)
   const stats = {
-    total: logs.length,
+    total,   // from pagination.total returned by the API
     documents: logs.filter(l => l.action.startsWith('envelope.')).length,
     signed: logs.filter(l => l.action === 'envelope.signed' || l.action === 'envelope.completed').length,
     viewed: logs.filter(l => l.action === 'envelope.viewed').length,
@@ -373,6 +469,8 @@ export function ActivityPage() {
       matchesType = entityTypeMap[activeFilter]?.includes(log.entityType) ||
                     (activeFilter === 'envelope' && log.action.startsWith('envelope.')) ||
                     (activeFilter === 'template' && log.action.startsWith('template.')) ||
+                    (activeFilter === 'settings' && (log.action.startsWith('settings.') || log.action.startsWith('api_key.') || log.action.startsWith('auth.'))) ||
+                    (activeFilter === 'system' && (log.action.startsWith('system.') || log.action.startsWith('auth.'))) ||
                     false;
     }
 

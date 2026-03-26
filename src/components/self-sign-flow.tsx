@@ -123,6 +123,7 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
   const [signingError, setSigningError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [showFieldSettings, setShowFieldSettings] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
@@ -575,56 +576,56 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
       setSignedPdfBlob(new Blob([pdfBytesOut], { type: "application/pdf" }));
 
       // Save to API and apply digital certificate
-      try {
-        const uint8 = new Uint8Array(pdfBytesOut);
-        const chunkSize = 8192;
-        let binaryStr = '';
-        for (let i = 0; i < uint8.length; i += chunkSize) {
-          binaryStr += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
-        }
-        const base64 = btoa(binaryStr);
-        const res = await fetch('/api/self-sign', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: file.name.replace('.pdf', ''),
-            originalFilename: file.name,
-            signedFilename: file.name.replace('.pdf', '_signed.pdf'),
-            fileSize: pdfBytesOut.length,
-            pageCount: totalPages,
-            signerName: sigText,
-            signatureStyle: signatureTab,
-            fieldsCount: fields.length,
-            pdfBase64: base64,
-            fields: fields.map(f => ({ type: f.type, page: f.page })),
-          }),
-        });
-        const data = await res.json();
-        console.log('[SelfSign] API response:', { success: data.success, certificateApplied: data.certificateApplied, hasSignedPdf: !!data.signedPdfBase64, error: data.error });
-        if (data.document?.id) setSavedDocumentId(data.document.id);
-        if (data.certificateApplied && data.signedPdfBase64) {
-          const signedBinaryStr = atob(data.signedPdfBase64);
-          const signedBytes = new Uint8Array(signedBinaryStr.length);
-          for (let i = 0; i < signedBinaryStr.length; i++) signedBytes[i] = signedBinaryStr.charCodeAt(i);
-          setSignedPdfBlob(new Blob([signedBytes], { type: "application/pdf" }));
-          setCertificateApplied(true);
-          setCertificateInfo(data.certificateInfo || null);
-        } else if (data.certificateError) {
-          console.warn('[SelfSign] Certificate error:', data.certificateError);
-          setSigningError(data.certificateError);
-        } else if (data.error) {
-          console.error('[SelfSign] API error:', data.error);
-          setSigningError(data.error);
-        }
-      } catch (certErr) {
-        console.error('[SelfSign] Certificate signing failed:', certErr);
-        setSigningError('Could not apply digital certificate');
+      const uint8 = new Uint8Array(pdfBytesOut);
+      const chunkSize = 8192;
+      let binaryStr = '';
+      for (let i = 0; i < uint8.length; i += chunkSize) {
+        binaryStr += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+      }
+      const base64 = btoa(binaryStr);
+      const res = await fetch('/api/self-sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: file.name.replace('.pdf', ''),
+          originalFilename: file.name,
+          signedFilename: file.name.replace('.pdf', '_signed.pdf'),
+          fileSize: pdfBytesOut.length,
+          pageCount: totalPages,
+          signerName: sigText,
+          signatureStyle: signatureTab,
+          fieldsCount: fields.length,
+          pdfBase64: base64,
+          fields: fields.map(f => ({ type: f.type, page: f.page })),
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(errData.error || `Server error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.document?.id) setSavedDocumentId(data.document.id);
+
+      if (data.certificateApplied && data.signedPdfBase64) {
+        const signedBinaryStr = atob(data.signedPdfBase64);
+        const signedBytes = new Uint8Array(signedBinaryStr.length);
+        for (let i = 0; i < signedBinaryStr.length; i++) signedBytes[i] = signedBinaryStr.charCodeAt(i);
+        setSignedPdfBlob(new Blob([signedBytes], { type: "application/pdf" }));
+        setCertificateApplied(true);
+        setCertificateInfo(data.certificateInfo || null);
+      } else if (data.certificateError) {
+        // Certificate couldn't be applied but document was saved — warn but continue
+        console.warn('[SelfSign] Certificate error:', data.certificateError);
+        setSigningError(data.certificateError);
       }
 
       setStep("complete");
       toast({ title: "Signed!", description: "Document signed successfully." });
     } catch (error) {
       console.error("Sign error:", error);
+      // Stay on the current step so user can retry
       toast({ title: "Error", description: "Failed to sign document.", variant: "destructive" });
     } finally {
       setIsProcessing(false);
@@ -650,31 +651,36 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header */}
-      <header className="h-14 border-b bg-card flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+      <header className="h-14 border-b bg-card flex items-center justify-between px-3 sm:px-4 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="shrink-0">
             <X className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
               <PenTool className="h-4 w-4 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="font-semibold text-sm">Sign Yourself</h1>
-              {file && <p className="text-xs text-muted-foreground truncate max-w-[200px]">{file.name}</p>}
+              {file && <p className="text-xs text-muted-foreground truncate max-w-[140px] sm:max-w-[200px]">{file.name}</p>}
             </div>
           </div>
         </div>
 
         {step === "sign" && (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border rounded-lg px-2 py-1">
+          <div className="flex items-center gap-1 sm:gap-4">
+            {/* Mobile fields toggle */}
+            <Button variant="outline" size="sm" className="lg:hidden h-8 px-2" onClick={() => setMobileSidebarOpen(true)}>
+              <PenTool className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline text-xs">Fields</span>
+            </Button>
+            <div className="flex items-center gap-1 border rounded-lg px-1.5 py-1">
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}><ZoomOut className="h-3 w-3" /></Button>
-              <span className="text-xs w-12 text-center">{Math.round(zoom * 100)}%</span>
+              <span className="text-xs w-10 sm:w-12 text-center">{Math.round(zoom * 100)}%</span>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(2, z + 0.25))}><ZoomIn className="h-3 w-3" /></Button>
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
                 <Button variant="ghost" size="icon" className="h-6 w-6" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><ChevronLeft className="h-3 w-3" /></Button>
                 <span className="text-xs">Page {currentPage} of {totalPages}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}><ChevronRight className="h-3 w-3" /></Button>
@@ -683,29 +689,37 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
           </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {step === "sign" && (
-            <Button onClick={handleSign} disabled={isProcessing || fields.length === 0}>
-              {isProcessing ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Signing...</> : <>Sign & Download</>}
+            <Button size="sm" onClick={handleSign} disabled={isProcessing || fields.length === 0} className="text-xs sm:text-sm">
+              {isProcessing ? <><Loader2 className="h-4 w-4 sm:mr-1 animate-spin" /><span className="hidden sm:inline">Signing...</span></> : <><span className="hidden sm:inline">Sign & </span>Download</>}
             </Button>
           )}
           {step === "complete" && (
-            <Button onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-1" />Download
+            <Button size="sm" onClick={handleDownload}>
+              <Download className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Download</span>
             </Button>
           )}
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex relative">
+        {/* Mobile sidebar overlay backdrop */}
+        {mobileSidebarOpen && step === "sign" && (
+          <div
+            className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+
         {/* Upload */}
         {step === "upload" && (
-          <div className="flex-1 flex items-center justify-center p-8">
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={cn("w-full max-w-md border-2 border-dashed rounded-xl p-12 text-center transition-colors hover-elevate", isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/30")}
+              className={cn("w-full max-w-md border-2 border-dashed rounded-xl p-6 sm:p-12 text-center transition-colors hover-elevate", isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/30")}
             >
               {isLoadingPdf ? (
                 <div className="flex flex-col items-center"><Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" /><p className="text-muted-foreground">Loading PDF...</p></div>
@@ -730,7 +744,21 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
         {step === "sign" && (
           <>
             {/* Left Sidebar */}
-            <aside className="w-64 border-r bg-card p-4 overflow-y-auto flex flex-col">
+            <aside className={cn(
+              "border-r bg-card overflow-y-auto flex flex-col transition-all duration-200",
+              "lg:w-64 lg:relative lg:z-auto",
+              mobileSidebarOpen
+                ? "fixed left-0 top-0 bottom-0 w-72 z-40 shadow-xl"
+                : "hidden lg:flex",
+              "p-4"
+            )}>
+              {/* Mobile close button */}
+              <div className="flex items-center justify-between mb-3 lg:hidden">
+                <span className="text-sm font-semibold">Field Tools</span>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMobileSidebarOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
               <div className="mb-4">
                 <Label className="text-xs font-semibold text-foreground">Add Fields</Label>
                 <p className="text-[10px] text-muted-foreground mt-1 mb-3">Select a field type, then click on the document to place it</p>
@@ -821,7 +849,7 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
             </aside>
 
             {/* Document Canvas */}
-            <main ref={containerRef} className="flex-1 overflow-auto bg-muted/50 p-6" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+            <main ref={containerRef} className="flex-1 overflow-auto bg-muted/50 p-2 sm:p-6 flex flex-col" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
               <div className="flex justify-center">
                 <div className={cn("relative bg-white shadow-lg", selectedFieldType && "cursor-crosshair")} onClick={handleCanvasClick}>
                   <canvas ref={canvasRef} className="block" />
@@ -906,11 +934,19 @@ export function SelfSignFlow({ open, onOpenChange, initialFile }: SelfSignFlowPr
                   })}
                 </div>
               </div>
+              {/* Mobile page navigation */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 py-2 sm:hidden">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+                  <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+                </div>
+              )}
             </main>
 
             {/* Field Settings Panel */}
             {selectedField && showFieldSettings && (
-              <aside className="w-56 border-l bg-card p-4">
+              <aside className="hidden sm:block w-56 border-l bg-card p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-sm">Field Settings</h3>
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowFieldSettings(false)}><X className="h-4 w-4" /></Button>

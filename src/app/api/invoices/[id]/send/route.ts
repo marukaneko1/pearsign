@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
 import { sendInvoice, getInvoice } from '@/lib/invoices';
+import { sendInvoiceReadyEmail } from '@/lib/email-service';
 
 export const POST = withTenant<{ id: string }>(async (
   request: NextRequest,
@@ -33,8 +34,40 @@ export const POST = withTenant<{ id: string }>(async (
       context.user?.id
     );
 
-    // TODO: Actually send email notification
-    // This would use the existing email service
+    // Send email notification to customer
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.pearsign.com';
+    const invoiceUrl = `${appUrl}/invoices/${invoice.id}`;
+
+    try {
+      const dueDate = invoice.due_date
+        ? new Date(invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : 'Upon receipt';
+
+      const invoiceDate = invoice.created_at
+        ? new Date(invoice.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+      const amount = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: invoice.currency || 'USD',
+      }).format(invoice.total);
+
+      await sendInvoiceReadyEmail({
+        organizationName: context.tenant.name,
+        contactName: invoice.customer_name,
+        contactEmail: invoice.customer_email,
+        invoiceNumber: invoice.invoice_number,
+        invoiceAmount: amount,
+        invoiceDate,
+        dueDate,
+        invoiceUrl,
+        billingPortalUrl: invoiceUrl,
+        orgId: tenantId,
+      });
+    } catch (emailError) {
+      // Log email failure but don't fail the overall send operation
+      console.error('[Invoice API] Email send failed:', emailError);
+    }
 
     return NextResponse.json({
       success: true,

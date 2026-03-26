@@ -364,6 +364,65 @@ export const TenantOnboardingService = {
    */
   async createDemoData(tenantId: string): Promise<{ success: boolean; message: string }> {
     try {
+      // Seed signer geo cache + demo signing sessions so the globe shows live data
+      const DEMO_SIGNER_LOCATIONS = [
+        { ip: '8.8.8.8',         lat: 40.71,  lng: -74.00,  city: 'New York',     country: 'United States',  code: 'US', count: 14 },
+        { ip: '185.220.101.34',  lat: 51.51,  lng: -0.13,   city: 'London',       country: 'United Kingdom', code: 'GB', count: 11 },
+        { ip: '103.10.123.10',   lat: 35.69,  lng: 139.69,  city: 'Tokyo',        country: 'Japan',          code: 'JP', count: 9  },
+        { ip: '195.140.142.10',  lat: 52.52,  lng: 13.40,   city: 'Berlin',       country: 'Germany',        code: 'DE', count: 6  },
+        { ip: '103.28.54.10',    lat: 1.35,   lng: 103.82,  city: 'Singapore',    country: 'Singapore',      code: 'SG', count: 8  },
+        { ip: '203.30.188.10',   lat: -33.87, lng: 151.21,  city: 'Sydney',       country: 'Australia',      code: 'AU', count: 5  },
+        { ip: '99.231.200.10',   lat: 43.65,  lng: -79.38,  city: 'Toronto',      country: 'Canada',         code: 'CA', count: 5  },
+        { ip: '177.136.76.10',   lat: -23.55, lng: -46.63,  city: 'São Paulo',    country: 'Brazil',         code: 'BR', count: 4  },
+        { ip: '116.202.10.10',   lat: 28.61,  lng: 77.21,   city: 'New Delhi',    country: 'India',          code: 'IN', count: 6  },
+        { ip: '58.68.164.10',    lat: 31.23,  lng: 121.47,  city: 'Shanghai',     country: 'China',          code: 'CN', count: 7  },
+      ];
+
+      // Ensure the geo cache table exists
+      await sql`
+        CREATE TABLE IF NOT EXISTS signer_geo_cache (
+          ip_address VARCHAR(100) PRIMARY KEY,
+          lat DOUBLE PRECISION, lng DOUBLE PRECISION,
+          city VARCHAR(200), country VARCHAR(200), country_code VARCHAR(10),
+          cached_at TIMESTAMP DEFAULT NOW()
+        )
+      `;
+
+      // Ensure signing sessions table exists
+      await sql`
+        CREATE TABLE IF NOT EXISTS envelope_signing_sessions (
+          id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          envelope_id VARCHAR(255), recipient_id VARCHAR(255),
+          org_id VARCHAR(255), tenant_id VARCHAR(255), token VARCHAR(500),
+          status VARCHAR(50) DEFAULT 'pending', ip_address VARCHAR(100),
+          user_agent TEXT, signed_at TIMESTAMP, viewed_at TIMESTAMP,
+          declined_at TIMESTAMP, decline_reason TEXT,
+          created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `;
+
+      for (const loc of DEMO_SIGNER_LOCATIONS) {
+        // Pre-populate geo cache
+        await sql`
+          INSERT INTO signer_geo_cache (ip_address, lat, lng, city, country, country_code)
+          VALUES (${loc.ip}, ${loc.lat}, ${loc.lng}, ${loc.city}, ${loc.country}, ${loc.code})
+          ON CONFLICT (ip_address) DO NOTHING
+        `;
+        // Create demo signing sessions with those IPs
+        for (let i = 0; i < loc.count; i++) {
+          const sessionId = `demo_sess_${tenantId}_${loc.code}_${i}_${Date.now()}`;
+          const signedAt = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000);
+          await sql`
+            INSERT INTO envelope_signing_sessions
+              (id, envelope_id, org_id, tenant_id, token, status, ip_address, signed_at, viewed_at)
+            VALUES
+              (${sessionId}, ${'demo_env_' + tenantId}, ${tenantId}, ${tenantId},
+               ${'demo_token_' + sessionId}, 'completed', ${loc.ip}, ${signedAt}, ${signedAt})
+            ON CONFLICT (id) DO NOTHING
+          `;
+        }
+      }
+
       // Create a sample template
       const templateId = `template_demo_${Date.now()}`;
 
@@ -393,7 +452,7 @@ export const TenantOnboardingService = {
         WHERE tenant_id = ${tenantId}
       `;
 
-      console.log('[TenantOnboarding] Created demo data for tenant:', tenantId);
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantOnboarding] Created demo data for tenant:', tenantId);
 
       return { success: true, message: 'Demo data created successfully' };
     } catch (error) {
@@ -417,6 +476,12 @@ export const TenantOnboardingService = {
         DELETE FROM envelope_documents WHERE org_id = ${tenantId} AND is_demo = true
       `;
 
+      // Remove demo signing sessions
+      await sql`
+        DELETE FROM envelope_signing_sessions
+        WHERE org_id = ${tenantId} AND id LIKE ${'demo_sess_' + tenantId + '%'}
+      `.catch(() => {});
+
       // Update onboarding status
       await sql`
         UPDATE tenant_onboarding
@@ -424,7 +489,7 @@ export const TenantOnboardingService = {
         WHERE tenant_id = ${tenantId}
       `;
 
-      console.log('[TenantOnboarding] Removed demo data for tenant:', tenantId);
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantOnboarding] Removed demo data for tenant:', tenantId);
 
       return { success: true, message: 'Demo data removed successfully' };
     } catch (error) {

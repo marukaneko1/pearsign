@@ -16,19 +16,19 @@ interface RouteParams {
 export async function GET(request: NextRequest, context: RouteParams) {
   try {
     const { code } = await context.params;
-    console.log('[FusionForm Public API] GET request for code:', code);
+    if (process.env.NODE_ENV !== 'production') console.log('[FusionForm Public API] GET request for code:', code);
 
     const form = await FusionFormsService.getFormByAccessCode(code);
 
     if (!form) {
-      console.log('[FusionForm Public API] Form not found for code:', code);
+      if (process.env.NODE_ENV !== 'production') console.log('[FusionForm Public API] Form not found for code:', code);
       return NextResponse.json(
         { error: "Form not found or inactive" },
         { status: 404 }
       );
     }
 
-    console.log('[FusionForm Public API] Found form:', form.id, form.name);
+    if (process.env.NODE_ENV !== 'production') console.log('[FusionForm Public API] Found form:', form.id, form.name);
 
     // Return public-safe form data
     return NextResponse.json({
@@ -93,12 +93,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
     const signerEmail = body.signerEmail || '';
 
     // Get IP and user agent
-    const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(',')[0]?.trim() || request.headers.get("x-real-ip") || null;
+    const userAgent = request.headers.get("user-agent") || null;
 
     // Get the template to get the PDF data
     const templates = await sql`
-      SELECT document_data, fields, signer_roles FROM templates WHERE id = ${form.templateId}::uuid
+      SELECT document_data, fields, signer_roles FROM templates WHERE id = ${form.templateId}
     `;
 
     if (templates.length === 0 || !templates[0].document_data) {
@@ -206,7 +206,30 @@ export async function POST(request: NextRequest, context: RouteParams) {
       WHERE id = ${form.id}::uuid
     `;
 
-    console.log('[FusionForm] Created envelope and signing session:', envelopeId, signingToken);
+    // Insert into fusion_form_submissions so the dashboard "Submissions" stat detail works
+    try {
+      await sql`
+        INSERT INTO fusion_form_submissions (
+          fusion_form_id, envelope_id, signer_name, signer_email,
+          ip_address, user_agent, status, access_token, audit_log
+        ) VALUES (
+          ${form.id}::uuid,
+          ${envelopeId},
+          ${signerName},
+          ${signerEmail || null},
+          ${ipAddress},
+          ${userAgent},
+          'pending',
+          ${signingToken},
+          ${JSON.stringify([{ action: 'submission_created', timestamp: new Date().toISOString() }])}::jsonb
+        )
+        ON CONFLICT (access_token) DO NOTHING
+      `;
+    } catch (trackErr) {
+      console.warn('[FusionForm] Non-fatal: could not insert submission record:', trackErr);
+    }
+
+    if (process.env.NODE_ENV !== 'production') console.log('[FusionForm] Created envelope and signing session:', envelopeId, signingToken);
 
     // Redirect to the EXISTING signing page (not the separate FusionForm signing page)
     return NextResponse.json({

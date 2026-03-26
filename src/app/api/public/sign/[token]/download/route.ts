@@ -93,7 +93,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
           } else {
             includeAuditOnDocument = complianceSettings[0].audit_mode === 'attached';
           }
-          console.log('[Download] Compliance settings:', {
+          if (process.env.NODE_ENV !== 'production') console.log('[Download] Compliance settings:', {
             auditEnabled,
             auditMode: complianceSettings[0].audit_mode,
             includeAuditOnDocument
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
         }
       }
     } catch (err) {
-      console.log('[Download] Could not fetch compliance settings, using defaults');
+      if (process.env.NODE_ENV !== 'production') console.log('[Download] Could not fetch compliance settings, using defaults');
     }
 
     // Generate the signed PDF with PKI digital signature

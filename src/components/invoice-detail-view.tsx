@@ -28,12 +28,22 @@ import {
   Pencil,
   History,
   Plus,
+  Trash2,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -166,6 +176,29 @@ export function InvoiceDetailView({ invoiceId, onBack, onEdit, onRefresh }: Invo
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "payments" | "activity">("details");
+
+  // Edit dialog state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editTab, setEditTab] = useState<"general" | "lineitems" | "customer">("general");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    status: string;
+    issue_date: string;
+    due_date: string;
+    amount_paid: string;
+    memo: string;
+    terms: string;
+    po_number: string;
+    customer_name: string;
+    customer_email: string;
+    customer_phone: string;
+    customer_address: string;
+    customer_city: string;
+    customer_state: string;
+    customer_zip: string;
+    customer_country: string;
+    line_items: { description: string; quantity: string; unit_price: string; tax_rate: string }[];
+  } | null>(null);
 
   const fetchInvoice = useCallback(async () => {
     try {
@@ -356,6 +389,93 @@ export function InvoiceDetailView({ invoiceId, onBack, onEdit, onRefresh }: Invo
     }
   };
 
+  const toDateInput = (dateStr: string) => {
+    if (!dateStr) return "";
+    // Already yyyy-MM-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // ISO timestamp — strip time portion
+    return new Date(dateStr).toISOString().split("T")[0];
+  };
+
+  const openEditDialog = () => {
+    if (!invoice) return;
+    setEditForm({
+      status: invoice.status,
+      issue_date: toDateInput(invoice.issue_date),
+      due_date: toDateInput(invoice.due_date),
+      amount_paid: invoice.amount_paid.toString(),
+      memo: invoice.memo || "",
+      terms: invoice.terms || "",
+      po_number: invoice.po_number || "",
+      customer_name: invoice.customer_name,
+      customer_email: invoice.customer_email,
+      customer_phone: invoice.customer_phone || "",
+      customer_address: invoice.customer_address || "",
+      customer_city: invoice.customer_city || "",
+      customer_state: invoice.customer_state || "",
+      customer_zip: invoice.customer_zip || "",
+      customer_country: invoice.customer_country || "",
+      line_items: (invoice.line_items || []).map((li) => ({
+        description: li.description,
+        quantity: li.quantity.toString(),
+        unit_price: li.unit_price.toString(),
+        tax_rate: li.tax_rate != null ? li.tax_rate.toString() : "",
+      })),
+    });
+    setEditTab("general");
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!invoice || !editForm) return;
+    setEditSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        status: editForm.status,
+        issue_date: editForm.issue_date,
+        due_date: editForm.due_date,
+        amount_paid: parseFloat(editForm.amount_paid) || 0,
+        memo: editForm.memo || null,
+        terms: editForm.terms || null,
+        po_number: editForm.po_number || null,
+        customer_name: editForm.customer_name,
+        customer_email: editForm.customer_email,
+        customer_phone: editForm.customer_phone || null,
+        customer_address: editForm.customer_address || null,
+        customer_city: editForm.customer_city || null,
+        customer_state: editForm.customer_state || null,
+        customer_zip: editForm.customer_zip || null,
+        customer_country: editForm.customer_country || null,
+        line_items: editForm.line_items.map((li) => ({
+          description: li.description,
+          quantity: parseFloat(li.quantity) || 1,
+          unit_price: parseFloat(li.unit_price) || 0,
+          tax_rate: li.tax_rate ? parseFloat(li.tax_rate) : null,
+        })),
+      };
+
+      const response = await fetch(`/api/invoices/${invoice.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        toast({ title: "Invoice updated", description: "Changes have been saved." });
+        setShowEditDialog(false);
+        fetchInvoice();
+        onRefresh();
+      } else {
+        const data = await response.json();
+        toast({ title: "Failed to save", description: data.error || "Could not update invoice.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" });
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -425,6 +545,10 @@ export function InvoiceDetailView({ invoiceId, onBack, onEdit, onRefresh }: Invo
               Record Payment
             </Button>
           )}
+          <Button variant="outline" onClick={openEditDialog} data-testid="button-edit-details">
+            <Settings2 className="w-4 h-4 mr-2" />
+            Edit Details
+          </Button>
           <Button variant="outline" onClick={handleDownloadPDF} data-testid="button-download-pdf">
             <Download className="w-4 h-4 mr-2" />
             PDF
@@ -904,6 +1028,371 @@ export function InvoiceDetailView({ invoiceId, onBack, onEdit, onRefresh }: Invo
               {paymentLoading ? "Recording..." : "Record Payment"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Details Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Settings2 className="w-5 h-5 text-muted-foreground" />
+              Edit Invoice {invoice.invoice_number}
+            </DialogTitle>
+            <DialogDescription>
+              Update invoice details, status, amounts, and customer information.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editForm && (
+            <>
+              {/* Tab Bar */}
+              <div className="flex gap-1 px-6 border-b border-border flex-shrink-0">
+                {(["general", "lineitems", "customer"] as const).map((t) => (
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => setEditTab(t)}
+                    className={cn(
+                      "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+                      editTab === t
+                        ? "border-primary text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t === "general" ? "General" : t === "lineitems" ? "Line Items" : "Customer"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+                {/* ── General Tab ── */}
+                {editTab === "general" && (
+                  <div className="space-y-4">
+                    {/* Status */}
+                    <div className="space-y-1.5">
+                      <Label>Status</Label>
+                      <Select
+                        value={editForm.status}
+                        onValueChange={(v) => setEditForm({ ...editForm, status: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="sent">Sent</SelectItem>
+                          <SelectItem value="viewed">Viewed</SelectItem>
+                          <SelectItem value="signed">Signed</SelectItem>
+                          <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="overdue">Overdue</SelectItem>
+                          <SelectItem value="void">Void</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Changing status manually bypasses the normal workflow.</p>
+                    </div>
+
+                    {/* Dates */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-issue-date">Issue Date</Label>
+                        <Input
+                          id="edit-issue-date"
+                          type="date"
+                          value={editForm.issue_date}
+                          onChange={(e) => setEditForm({ ...editForm, issue_date: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-due-date">Due Date</Label>
+                        <Input
+                          id="edit-due-date"
+                          type="date"
+                          value={editForm.due_date}
+                          onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Amount Paid */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="edit-amount-paid">Amount Paid ({invoice.currency})</Label>
+                      <Input
+                        id="edit-amount-paid"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editForm.amount_paid}
+                        onChange={(e) => setEditForm({ ...editForm, amount_paid: e.target.value })}
+                        placeholder="0.00"
+                      />
+                      <p className="text-xs text-muted-foreground">Direct override of the total paid amount. Invoice total: {formatCurrency(invoice.total, invoice.currency)}</p>
+                    </div>
+
+                    {/* PO Number */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="edit-po-number">PO Number (optional)</Label>
+                      <Input
+                        id="edit-po-number"
+                        value={editForm.po_number}
+                        onChange={(e) => setEditForm({ ...editForm, po_number: e.target.value })}
+                        placeholder="e.g. PO-2024-001"
+                      />
+                    </div>
+
+                    {/* Memo */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="edit-memo">Notes / Memo</Label>
+                      <Textarea
+                        id="edit-memo"
+                        rows={3}
+                        value={editForm.memo}
+                        onChange={(e) => setEditForm({ ...editForm, memo: e.target.value })}
+                        placeholder="Add a note visible to the customer…"
+                      />
+                    </div>
+
+                    {/* Terms */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="edit-terms">Terms & Conditions</Label>
+                      <Textarea
+                        id="edit-terms"
+                        rows={3}
+                        value={editForm.terms}
+                        onChange={(e) => setEditForm({ ...editForm, terms: e.target.value })}
+                        placeholder="Payment terms, late fees, etc."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Line Items Tab ── */}
+                {editTab === "lineitems" && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Edit line items to recalculate the invoice total.</p>
+
+                    {/* Header row */}
+                    <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground uppercase px-1">
+                      <div className="col-span-5">Description</div>
+                      <div className="col-span-2 text-center">Qty</div>
+                      <div className="col-span-2 text-right">Price</div>
+                      <div className="col-span-2 text-right">Tax %</div>
+                      <div className="col-span-1" />
+                    </div>
+
+                    {editForm.line_items.map((li, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-5">
+                          <Input
+                            value={li.description}
+                            onChange={(e) => {
+                              const items = [...editForm.line_items];
+                              items[idx] = { ...items[idx], description: e.target.value };
+                              setEditForm({ ...editForm, line_items: items });
+                            }}
+                            placeholder="Description"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={li.quantity}
+                            onChange={(e) => {
+                              const items = [...editForm.line_items];
+                              items[idx] = { ...items[idx], quantity: e.target.value };
+                              setEditForm({ ...editForm, line_items: items });
+                            }}
+                            className="text-center"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={li.unit_price}
+                            onChange={(e) => {
+                              const items = [...editForm.line_items];
+                              items[idx] = { ...items[idx], unit_price: e.target.value };
+                              setEditForm({ ...editForm, line_items: items });
+                            }}
+                            className="text-right"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={li.tax_rate}
+                            onChange={(e) => {
+                              const items = [...editForm.line_items];
+                              items[idx] = { ...items[idx], tax_rate: e.target.value };
+                              setEditForm({ ...editForm, line_items: items });
+                            }}
+                            placeholder="0"
+                            className="text-right"
+                          />
+                        </div>
+                        <div className="col-span-1 flex justify-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                            onClick={() => {
+                              const items = editForm.line_items.filter((_, i) => i !== idx);
+                              setEditForm({ ...editForm, line_items: items });
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1"
+                      onClick={() =>
+                        setEditForm({
+                          ...editForm,
+                          line_items: [
+                            ...editForm.line_items,
+                            { description: "", quantity: "1", unit_price: "0.00", tax_rate: "" },
+                          ],
+                        })
+                      }
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />
+                      Add Line Item
+                    </Button>
+
+                    {/* Live total preview */}
+                    {editForm.line_items.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Estimated Total</span>
+                          <span className="font-semibold">
+                            {formatCurrency(
+                              editForm.line_items.reduce((sum, li) => {
+                                const qty = parseFloat(li.quantity) || 0;
+                                const price = parseFloat(li.unit_price) || 0;
+                                const tax = parseFloat(li.tax_rate) || 0;
+                                return sum + qty * price * (1 + tax / 100);
+                              }, 0),
+                              invoice.currency
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Customer Tab ── */}
+                {editTab === "customer" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                        <Label htmlFor="edit-cust-name">Name</Label>
+                        <Input
+                          id="edit-cust-name"
+                          value={editForm.customer_name}
+                          onChange={(e) => setEditForm({ ...editForm, customer_name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                        <Label htmlFor="edit-cust-email">Email</Label>
+                        <Input
+                          id="edit-cust-email"
+                          type="email"
+                          value={editForm.customer_email}
+                          onChange={(e) => setEditForm({ ...editForm, customer_email: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                        <Label htmlFor="edit-cust-phone">Phone</Label>
+                        <Input
+                          id="edit-cust-phone"
+                          value={editForm.customer_phone}
+                          onChange={(e) => setEditForm({ ...editForm, customer_phone: e.target.value })}
+                          placeholder="+1 (555) 000-0000"
+                        />
+                      </div>
+                      <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                        <Label htmlFor="edit-cust-country">Country</Label>
+                        <Input
+                          id="edit-cust-country"
+                          value={editForm.customer_country}
+                          onChange={(e) => setEditForm({ ...editForm, customer_country: e.target.value })}
+                          placeholder="e.g. US"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="edit-cust-address">Address</Label>
+                      <Input
+                        id="edit-cust-address"
+                        value={editForm.customer_address}
+                        onChange={(e) => setEditForm({ ...editForm, customer_address: e.target.value })}
+                        placeholder="Street address"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-cust-city">City</Label>
+                        <Input
+                          id="edit-cust-city"
+                          value={editForm.customer_city}
+                          onChange={(e) => setEditForm({ ...editForm, customer_city: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-cust-state">State</Label>
+                        <Input
+                          id="edit-cust-state"
+                          value={editForm.customer_state}
+                          onChange={(e) => setEditForm({ ...editForm, customer_state: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-cust-zip">ZIP</Label>
+                        <Input
+                          id="edit-cust-zip"
+                          value={editForm.customer_zip}
+                          onChange={(e) => setEditForm({ ...editForm, customer_zip: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-border flex justify-end gap-2 flex-shrink-0 bg-muted/30">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)} disabled={editSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveEdit} disabled={editSaving} data-testid="button-save-edit">
+                  {editSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

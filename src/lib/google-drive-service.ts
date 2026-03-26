@@ -24,7 +24,7 @@ async function refreshTokenIfNeeded(config: GoogleDriveConfig, tenantId: string)
     throw new Error("Cannot refresh token: missing credentials");
   }
 
-  console.log("[Google Drive] Refreshing access token...");
+  if (process.env.NODE_ENV !== 'production') console.log("[Google Drive] Refreshing access token...");
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -135,7 +135,7 @@ export async function uploadToGoogleDrive(
       return { success: false, error: data.error?.message || "Upload failed" };
     }
 
-    console.log("[Google Drive] File uploaded:", data.name, data.id);
+    if (process.env.NODE_ENV !== 'production') console.log("[Google Drive] File uploaded:", data.name, data.id);
 
     return {
       success: true,
@@ -177,7 +177,7 @@ export async function saveSignedDocumentToDrive(
     const result = await uploadToGoogleDrive(fileName, pdfBase64, "application/pdf", tenantId);
 
     if (result.success) {
-      console.log("[Google Drive] Auto-saved document:", fileName);
+      if (process.env.NODE_ENV !== 'production') console.log("[Google Drive] Auto-saved document:", fileName);
     } else {
       console.error("[Google Drive] Auto-save failed:", result.error);
     }

@@ -1079,7 +1079,7 @@ export async function initializeEmailTemplates(): Promise<void> {
       }
     }
 
-    console.log('[EmailTemplates] Table schema verified (non-destructive migration)');
+    if (process.env.NODE_ENV !== 'production') console.log('[EmailTemplates] Table schema verified (non-destructive migration)');
 
     const SYSTEM_ORG_ID = 'system';
 
@@ -1132,7 +1132,7 @@ export async function initializeEmailTemplates(): Promise<void> {
       }
     }
 
-    console.log('[EmailTemplates] Templates synced with latest designs');
+    if (process.env.NODE_ENV !== 'production') console.log('[EmailTemplates] Templates synced with latest designs');
   } catch (error) {
     console.error('[EmailTemplates] Error initializing templates:', error);
     throw error;
@@ -1180,7 +1180,7 @@ async function seedTemplatesForTenant(orgId: string): Promise<void> {
   }
 
   if (seededCount > 0) {
-    console.log(`[EmailTemplates] Seeded ${seededCount} email templates for tenant:`, orgId);
+    if (process.env.NODE_ENV !== 'production') console.log(`[EmailTemplates] Seeded ${seededCount} email templates for tenant:`, orgId);
   }
 }
 
@@ -1206,7 +1206,7 @@ export async function getEmailTemplates(orgId: string): Promise<EmailTemplate[]>
 
     // If tenant has no templates, seed them
     if (parseInt(existingCount[0]?.count || '0', 10) === 0) {
-      console.log('[EmailTemplates] No templates for tenant, seeding defaults:', orgId);
+      if (process.env.NODE_ENV !== 'production') console.log('[EmailTemplates] No templates for tenant, seeding defaults:', orgId);
       await seedTemplatesForTenant(orgId);
     }
 

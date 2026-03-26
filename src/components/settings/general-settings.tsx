@@ -118,12 +118,29 @@ export function GeneralSettings() {
     }
   };
 
-  const handleNotificationChange = (key: keyof typeof notifications, value: boolean) => {
-    setNotifications(prev => ({ ...prev, [key]: value }));
-    toast({
-      title: "Preferences updated",
-      description: `${key.replace(/([A-Z])/g, ' $1').trim()} has been ${value ? 'enabled' : 'disabled'}`,
-    });
+  const handleNotificationChange = async (key: keyof typeof notifications, value: boolean) => {
+    const updated = { ...notifications, [key]: value };
+    setNotifications(updated);
+
+    try {
+      await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      toast({
+        title: "Preferences updated",
+        description: `${key.replace(/([A-Z])/g, ' $1').trim()} has been ${value ? 'enabled' : 'disabled'}`,
+      });
+    } catch {
+      // Revert on failure
+      setNotifications(prev => ({ ...prev, [key]: !value }));
+      toast({
+        title: "Failed to save preferences",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {

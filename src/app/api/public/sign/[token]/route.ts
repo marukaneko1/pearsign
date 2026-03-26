@@ -111,6 +111,9 @@ const FIELD_LABELS: Record<string, string> = {
   text: 'Text Field',
   company: 'Company',
   title: 'Job Title',
+  phone: 'Phone Number',
+  address: 'Address',
+  number: 'Number',
   upload: 'Document Upload',
 };
 
@@ -338,8 +341,8 @@ export async function PUT(request: NextRequest, context: RouteParams) {
 
     await ensureSigningTable();
 
-    const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(',')[0]?.trim() || request.headers.get("x-real-ip") || null;
+    const userAgent = request.headers.get("user-agent") || null;
 
     // Update viewed_at timestamp and status to 'viewed' (only if not already viewed/completed)
     const result = await sql`
@@ -357,8 +360,8 @@ export async function PUT(request: NextRequest, context: RouteParams) {
     `;
 
     // Log the viewed event and trigger webhook (only on first view)
-    console.log("[Viewed] PUT request received for token:", token);
-    console.log("[Viewed] Update result rows:", result.length);
+    if (process.env.NODE_ENV !== 'production') console.log("[Viewed] PUT request received for token:", token);
+    if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Update result rows:", result.length);
 
     if (result.length > 0) {
       const session = result[0];
@@ -366,17 +369,17 @@ export async function PUT(request: NextRequest, context: RouteParams) {
       const timeDiff = new Date().getTime() - viewedAtTime;
       const isFirstView = session.viewed_at === null || timeDiff < 5000;
 
-      console.log("[Viewed] Session data:", {
+      if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Session data:", {
         token: session.token,
         status: session.status,
         viewed_at: session.viewed_at,
         recipient_email: session.recipient_email,
         org_id: session.org_id,
       });
-      console.log("[Viewed] Time diff (ms):", timeDiff, "isFirstView:", isFirstView);
+      if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Time diff (ms):", timeDiff, "isFirstView:", isFirstView);
 
       if (isFirstView) {
-        console.log("[Viewed] First view detected, sending notifications...");
+        if (process.env.NODE_ENV !== 'production') console.log("[Viewed] First view detected, sending notifications...");
         // Get document title for webhook
         const documents = await sql`
           SELECT title FROM envelope_documents
@@ -417,10 +420,10 @@ export async function PUT(request: NextRequest, context: RouteParams) {
             if (auditResult.length > 0 && auditResult[0].actor_email) {
               senderName = auditResult[0].actor_name || 'PearSign User';
               senderEmail = auditResult[0].actor_email;
-              console.log("[Viewed] Found sender from audit log:", senderEmail);
+              if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Found sender from audit log:", senderEmail);
             }
           } catch (auditErr) {
-            console.log("[Viewed] Audit log lookup failed:", auditErr);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Audit log lookup failed:", auditErr);
           }
 
           // Method 2: Fallback to user_profiles (check both tenant org and default org)
@@ -437,10 +440,10 @@ export async function PUT(request: NextRequest, context: RouteParams) {
               if (profileResult.length > 0 && profileResult[0].email) {
                 senderName = `${profileResult[0].first_name || ''} ${profileResult[0].last_name || ''}`.trim() || 'PearSign User';
                 senderEmail = profileResult[0].email;
-                console.log("[Viewed] Found sender from user_profiles:", senderEmail);
+                if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Found sender from user_profiles:", senderEmail);
               }
             } catch (profileErr) {
-              console.log("[Viewed] User profiles lookup failed:", profileErr);
+              if (process.env.NODE_ENV !== 'production') console.log("[Viewed] User profiles lookup failed:", profileErr);
             }
           }
 
@@ -456,15 +459,15 @@ export async function PUT(request: NextRequest, context: RouteParams) {
               if (anyProfile.length > 0 && anyProfile[0].email) {
                 senderName = `${anyProfile[0].first_name || ''} ${anyProfile[0].last_name || ''}`.trim() || 'PearSign User';
                 senderEmail = anyProfile[0].email;
-                console.log("[Viewed] Found sender from any profile:", senderEmail);
+                if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Found sender from any profile:", senderEmail);
               }
             } catch {
-              console.log("[Viewed] Any profile lookup failed");
+              if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Any profile lookup failed");
             }
           }
 
           if (senderEmail) {
-            console.log("[Viewed] Sending notification to:", senderEmail);
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Sending notification to:", senderEmail);
             const emailResult = await sendDocumentViewedNotification({
               documentName: documentTitle,
               viewerName: session.recipient_name as string,
@@ -476,12 +479,12 @@ export async function PUT(request: NextRequest, context: RouteParams) {
             });
 
             if (emailResult.success) {
-              console.log("[Viewed] Sent notification email to sender:", senderEmail);
+              if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Sent notification email to sender:", senderEmail);
             } else {
-              console.log("[Viewed] Failed to send notification email:", emailResult.error);
+              if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Failed to send notification email:", emailResult.error);
             }
           } else {
-            console.log("[Viewed] No sender email found, skipping notification");
+            if (process.env.NODE_ENV !== 'production') console.log("[Viewed] No sender email found, skipping notification");
           }
         } catch (emailErr) {
           console.error("[Viewed] Error sending notification email:", emailErr);
@@ -504,7 +507,7 @@ export async function PUT(request: NextRequest, context: RouteParams) {
           // Don't fail the request if webhook fails
         }
       } else {
-        console.log("[Viewed] Not first view, skipping notifications (time diff:", timeDiff, "ms)");
+        if (process.env.NODE_ENV !== 'production') console.log("[Viewed] Not first view, skipping notifications (time diff:", timeDiff, "ms)");
       }
     }
 
@@ -539,8 +542,8 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
     await ensureSigningTable();
 
-    const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(',')[0]?.trim() || request.headers.get("x-real-ip") || null;
+    const userAgent = request.headers.get("user-agent") || null;
     const signedAt = new Date();
 
     const signerName = body.signerName || 'Signer';
@@ -568,12 +571,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
     }
 
     // Get the document to generate signed PDF
-    console.log('[Signing Complete] Looking for document with envelope_id:', tokenData.envelopeId);
+    if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Looking for document with envelope_id:', tokenData.envelopeId);
     const documents = await sql`
       SELECT * FROM envelope_documents
       WHERE envelope_id = ${tokenData.envelopeId}
     `;
-    console.log('[Signing Complete] Found documents:', documents.length, documents.length > 0 ? `title: ${documents[0]?.title}` : 'NONE FOUND');
+    if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Found documents:', documents.length, documents.length > 0 ? `title: ${documents[0]?.title}` : 'NONE FOUND');
 
     // Fetch compliance settings to determine audit trail mode
     let includeAuditOnDocument = true;
@@ -595,7 +598,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           } else {
             includeAuditOnDocument = complianceSettings[0].audit_mode === 'attached';
           }
-          console.log('[Signing Complete] Compliance settings:', {
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Compliance settings:', {
             auditTrailEnabled,
             auditMode: complianceSettings[0].audit_mode,
             includeAuditOnDocument
@@ -603,7 +606,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         }
       }
     } catch (err) {
-      console.log('[Signing Complete] Could not fetch compliance settings, using defaults');
+      if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Could not fetch compliance settings, using defaults');
     }
 
     let signedPdfBase64 = '';
@@ -626,10 +629,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
       if (auditResult.length > 0 && auditResult[0].actor_email) {
         senderName = auditResult[0].actor_name || 'PearSign User';
         senderEmail = auditResult[0].actor_email;
-        console.log("[Signing Complete] Found sender from audit log:", senderEmail);
+        if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Found sender from audit log:", senderEmail);
       }
     } catch (auditErr) {
-      console.log("[Signing Complete] Audit log lookup failed:", auditErr);
+      if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Audit log lookup failed:", auditErr);
     }
 
     // Method 2: Fallback to user_profiles
@@ -646,11 +649,11 @@ export async function POST(request: NextRequest, context: RouteParams) {
           if (profileResult.length > 0 && profileResult[0].email) {
             senderName = `${profileResult[0].first_name || ''} ${profileResult[0].last_name || ''}`.trim() || 'PearSign User';
             senderEmail = profileResult[0].email;
-            console.log("[Signing Complete] Found sender from user_profiles:", senderEmail);
+            if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Found sender from user_profiles:", senderEmail);
           }
         }
       } catch (profileErr) {
-        console.log("[Signing Complete] Profile lookup failed:", profileErr);
+        if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Profile lookup failed:", profileErr);
       }
     }
 
@@ -666,10 +669,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
         if (anyProfile.length > 0 && anyProfile[0].email) {
           senderName = `${anyProfile[0].first_name || ''} ${anyProfile[0].last_name || ''}`.trim() || 'PearSign User';
           senderEmail = anyProfile[0].email;
-          console.log("[Signing Complete] Found sender from any profile:", senderEmail);
+          if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Found sender from any profile:", senderEmail);
         }
       } catch {
-        console.log("[Signing Complete] Any profile lookup failed");
+        if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Any profile lookup failed");
       }
     }
 
@@ -688,13 +691,13 @@ export async function POST(request: NextRequest, context: RouteParams) {
         try {
           const { data } = await TenantObjectStorage.downloadBuffer(doc.pdf_object_path as string);
           doc.pdf_data = data.toString('base64');
-          console.log('[Signing Complete] Loaded PDF from Object Storage, size:', doc.pdf_data.length);
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Loaded PDF from Object Storage, size:', doc.pdf_data.length);
         } catch (storageErr) {
           console.error('[Signing Complete] Failed to load PDF from Object Storage:', storageErr);
         }
       }
 
-      console.log('[Signing Complete] Document found:', {
+      if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Document found:', {
         title: doc.title,
         hasPdfData: !!doc.pdf_data,
         pdfDataLength: doc.pdf_data?.length || 0,
@@ -702,7 +705,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
       });
 
       const documentHash = generateDocumentHash(doc.pdf_data);
-      console.log('[Signing Complete] Document hash generated:', documentHash.substring(0, 16) + '...');
+      if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Document hash generated:', documentHash.substring(0, 16) + '...');
 
       // Create signature records for each signature/initials field
       // This generates unique PearSign IDs (PS-XXXXXXXX) for each signature
@@ -717,7 +720,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           }));
 
         if (signatureFieldsToRecord.length > 0) {
-          console.log('[Signing Complete] Creating signature records for', signatureFieldsToRecord.length, 'fields...');
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Creating signature records for', signatureFieldsToRecord.length, 'fields...');
 
           signatureIds = await createSignaturesForSession({
             envelopeId: tokenData.envelopeId,
@@ -733,9 +736,9 @@ export async function POST(request: NextRequest, context: RouteParams) {
             organizationId: tenantId,
           });
 
-          console.log('[Signing Complete] Created', signatureIds.size, 'signature records with PearSign IDs');
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Created', signatureIds.size, 'signature records with PearSign IDs');
           signatureIds.forEach((id, fieldId) => {
-            console.log(`[Signing Complete]   - ${fieldId}: ${id}`);
+            if (process.env.NODE_ENV !== 'production') console.log(`[Signing Complete]   - ${fieldId}: ${id}`);
           });
         }
       } catch (sigRecordErr) {
@@ -746,10 +749,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
       // Generate the signed PDF with signature overlays, PearSign IDs, AND digital signature (PKI)
       // IMPORTANT: PKI digital signature is applied LAST - no modifications allowed after this
       try {
-        console.log('[Signing Complete] Generating signed PDF with visual signatures...');
-        console.log('[Signing Complete] - includeAuditOnDocument:', includeAuditOnDocument);
-        console.log('[Signing Complete] - signatureIds count:', signatureIds.size);
-        console.log('[Signing Complete] - PKI digital signature: ENABLED (Adobe-recognized)');
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Generating signed PDF with visual signatures...');
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] - includeAuditOnDocument:', includeAuditOnDocument);
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] - signatureIds count:', signatureIds.size);
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] - PKI digital signature: ENABLED (Adobe-recognized)');
 
         const signedPdfBytes = await generateSignedPDF({
           originalPdfBase64: doc.pdf_data,
@@ -780,12 +783,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
           console.warn('[Signing Complete] WARNING: Signed PDF is not larger than original - signature may not have been applied');
         }
 
-        console.log('[Signing Complete] Signed PDF generated with PKI signature, size:', signedPdfBase64.length);
-        console.log('[Signing Complete] PDF is now FINALIZED - no further modifications');
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Signed PDF generated with PKI signature, size:', signedPdfBase64.length);
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] PDF is now FINALIZED - no further modifications');
       } catch (err) {
         console.error('[Signing Complete] Error generating signed PDF:', err);
         // Fallback: Generate PDF without PKI signature
-        console.log('[Signing Complete] Falling back to visual-only signatures...');
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Falling back to visual-only signatures...');
         try {
           const fallbackPdfBytes = await generateSignedPDF({
             originalPdfBase64: doc.pdf_data,
@@ -804,7 +807,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             signatureIds,
           });
           signedPdfBase64 = pdfBytesToBase64(fallbackPdfBytes);
-          console.log('[Signing Complete] Fallback PDF generated (visual signatures only)');
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Fallback PDF generated (visual signatures only)');
         } catch (fallbackErr) {
           console.error('[Signing Complete] Fallback also failed:', fallbackErr);
           // Continue without signed PDF if both attempts fail
@@ -833,7 +836,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         );
         signedPdfObjectPath = storageResult.objectPath;
         signedPdfDataForDb = null;
-        console.log("[Signing Complete] Signed PDF stored in Object Storage:", signedPdfObjectPath);
+        if (process.env.NODE_ENV !== 'production') console.log("[Signing Complete] Signed PDF stored in Object Storage:", signedPdfObjectPath);
       } catch (storageErr) {
         console.warn("[Signing Complete] Object Storage failed, storing in DB:", storageErr);
       }
@@ -874,6 +877,20 @@ export async function POST(request: NextRequest, context: RouteParams) {
           signed_at = NOW()
         WHERE token = ${token}
       `;
+    }
+
+    // If this is a fusion-form envelope, mark the corresponding fusion_form_submission as completed
+    if (tokenData.envelopeId.startsWith('env-ff-')) {
+      try {
+        await sql`
+          UPDATE fusion_form_submissions
+          SET status = 'completed', signed_at = NOW(), updated_at = NOW()
+          WHERE envelope_id = ${tokenData.envelopeId}
+            AND status != 'completed'
+        `;
+      } catch (ffErr) {
+        console.warn('[Signing Complete] Non-fatal: could not update fusion form submission status:', ffErr);
+      }
     }
 
     // Log the signing event
@@ -939,7 +956,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             signerName
           );
           if (retentionResult.success) {
-            console.log('[Signing Complete] Retention set, expires:', retentionResult.retentionExpiresAt || 'never');
+            if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Retention set, expires:', retentionResult.retentionExpiresAt || 'never');
           }
         } catch (retentionErr) {
           console.error('[Signing Complete] Failed to set retention:', retentionErr);
@@ -952,10 +969,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
     }
 
     // Send completion emails if we have the signed PDF
-    console.log('[Signing Complete] signedPdfBase64 exists:', !!signedPdfBase64, 'length:', signedPdfBase64?.length || 0);
+    if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] signedPdfBase64 exists:', !!signedPdfBase64, 'length:', signedPdfBase64?.length || 0);
     if (signedPdfBase64) {
       try {
-        console.log('[Signing Complete] Sending completion emails...');
+        if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Sending completion emails...');
 
         // Build field summary for email
         const fieldsSummary: Array<{ name: string; value: string }> = [];
@@ -985,7 +1002,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           `;
 
           if (uploadedDocs.length > 0) {
-            console.log('[Signing Complete] Found', uploadedDocs.length, 'uploaded documents to attach');
+            if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Found', uploadedDocs.length, 'uploaded documents to attach');
             additionalAttachments = uploadedDocs.map((doc) => ({
               content: doc.file_data,
               filename: doc.file_name,
@@ -993,7 +1010,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             }));
           }
         } catch (uploadErr) {
-          console.log('[Signing Complete] Could not fetch uploaded documents:', uploadErr);
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Could not fetch uploaded documents:', uploadErr);
         }
 
         // Only send to both if we have a valid sender email
@@ -1011,7 +1028,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             orgId: tenantId, // TENANT ISOLATION: Pass orgId for proper credential lookup
           });
 
-          console.log('[Signing Complete] Email results:', {
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Email results:', {
             signerEmail: emailResult.signerResult.success ? 'sent' : emailResult.signerResult.error,
             senderEmail: emailResult.senderResult.success ? 'sent' : emailResult.senderResult.error,
             senderRecipient: senderEmail,
@@ -1019,7 +1036,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           });
         } else {
           // Only send to signer if no sender email found
-          console.log('[Signing Complete] No sender email - sending only to signer');
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] No sender email - sending only to signer');
           const signerResult = await sendSignerNotification({
             documentName: documentTitle,
             signerName,
@@ -1032,7 +1049,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
             additionalAttachments: additionalAttachments.length > 0 ? additionalAttachments : undefined,
             orgId: tenantId, // TENANT ISOLATION: Pass orgId for proper credential lookup
           });
-          console.log('[Signing Complete] Signer email result:', signerResult.success ? 'sent' : signerResult.error);
+          if (process.env.NODE_ENV !== 'production') console.log('[Signing Complete] Signer email result:', signerResult.success ? 'sent' : signerResult.error);
         }
       } catch (err) {
         console.error('[Signing Complete] Error sending emails:', err);

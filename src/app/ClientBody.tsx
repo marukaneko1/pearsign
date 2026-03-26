@@ -7,6 +7,7 @@ import { TenantProvider } from "@/contexts/tenant-context";
 import { TenantSessionProvider } from "@/contexts/tenant-session-context";
 import { Toaster } from "@/components/ui/toaster";
 import { CookieConsent } from "@/components/cookie-consent";
+import { AiAssistantWidget } from "@/components/ai-assistant-widget";
 import { initCapacitor } from "@/lib/capacitor";
 
 export default function ClientBody({
@@ -27,6 +28,7 @@ export default function ClientBody({
             <div className="antialiased">{children}</div>
             <Toaster />
             <CookieConsent />
+            <AiAssistantWidget />
           </TenantProvider>
         </TenantSessionProvider>
       </AuthProvider>

@@ -162,7 +162,7 @@ export function TenantAdminDashboard() {
       const response = await fetch('/api/billing', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
-        setBillingData(data);
+        setBillingData(data.billing ?? data);
       }
     } catch (e) {
       console.error('Failed to load billing data:', e);
@@ -454,29 +454,7 @@ export function TenantAdminDashboard() {
                         </div>
                       </div>
                     ))}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={async () => {
-                        try {
-                          const response = await fetch('/api/billing', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ action: 'createPortal' }),
-                          });
-                          const data = await response.json();
-                          if (data.portalUrl) {
-                            window.location.href = data.portalUrl;
-                          }
-                        } catch (e) {
-                          toast({ title: 'Error', description: 'Failed to open billing portal', variant: 'destructive' });
-                        }
-                      }}
-                    >
-                      Manage Payment Methods
-                    </Button>
+                    <BillingPortalButton label="Manage Payment Methods" toast={toast} />
                   </div>
                 ) : (
                   <div className="p-4 bg-muted/50 rounded-lg text-center">
@@ -484,29 +462,7 @@ export function TenantAdminDashboard() {
                     <p className="text-sm text-muted-foreground">
                       No payment method on file
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={async () => {
-                        try {
-                          const response = await fetch('/api/billing', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ action: 'createPortal' }),
-                          });
-                          const data = await response.json();
-                          if (data.portalUrl) {
-                            window.location.href = data.portalUrl;
-                          }
-                        } catch (e) {
-                          toast({ title: 'Error', description: 'Failed to open billing portal', variant: 'destructive' });
-                        }
-                      }}
-                    >
-                      Add Payment Method
-                    </Button>
+                    <BillingPortalButton label="Add Payment Method" toast={toast} />
                   </div>
                 )}
 
@@ -673,6 +629,42 @@ export function TenantAdminDashboard() {
         }}
       />
     </div>
+  );
+}
+
+function BillingPortalButton({ label, toast }: { label: string; toast: ReturnType<typeof useToast>['toast'] }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'createPortal' }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        toast({ title: 'Billing unavailable', description: data.error || 'Failed to open billing portal', variant: 'destructive' });
+        return;
+      }
+      // portal for existing customers, setup checkout for new ones
+      const redirect = data.portalUrl || data.setupUrl;
+      if (redirect) {
+        window.location.href = redirect;
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to open billing portal', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" className="mt-2" onClick={handleClick} disabled={loading}>
+      {loading ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />{label}</> : label}
+    </Button>
   );
 }
 
@@ -951,6 +943,7 @@ function ChangePlanDialog({ open, onOpenChange, currentPlan, onSaved }: {
   onSaved: (plan: string) => void;
 }) {
   const [selectedPlan, setSelectedPlan] = useState(currentPlan);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annually'>('monthly');
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -962,28 +955,47 @@ function ChangePlanDialog({ open, onOpenChange, currentPlan, onSaved }: {
     {
       id: "free",
       name: "Free",
-      price: "$0/mo",
+      monthly: 0,
+      annually: 0,
+      description: "Get started for free",
+      highlight: false,
       features: ["5 envelopes/month", "3 templates", "1 team member", "Basic support"],
     },
     {
       id: "starter",
       name: "Starter",
-      price: "$19/mo",
+      monthly: 19,
+      annually: 16,
+      description: "For small teams",
+      highlight: false,
       features: ["100 envelopes/month", "25 templates", "5 team members", "Email support", "100 SMS/month"],
     },
     {
       id: "professional",
       name: "Professional",
-      price: "$49/mo",
+      monthly: 49,
+      annually: 41,
+      description: "For growing businesses",
+      highlight: true,
       features: ["500 envelopes/month", "100 templates", "15 team members", "Priority support", "500 SMS/month", "Custom branding", "Bulk send", "API access"],
     },
     {
       id: "enterprise",
       name: "Enterprise",
-      price: "Custom",
+      monthly: -1,
+      annually: -1,
+      description: "For large organizations",
+      highlight: false,
       features: ["Unlimited envelopes", "Unlimited templates", "Unlimited team members", "Dedicated support", "Unlimited SMS", "Custom branding", "Bulk send", "Full API access", "SSO/SAML"],
     },
   ];
+
+  const getPrice = (plan: typeof plans[0]) => {
+    if (plan.monthly === -1) return { label: 'Custom', sub: 'Contact us' };
+    if (plan.monthly === 0) return { label: '$0', sub: 'forever free' };
+    const amount = billingPeriod === 'annually' ? plan.annually : plan.monthly;
+    return { label: `$${amount}`, sub: `per month${billingPeriod === 'annually' ? ', billed annually' : ''}` };
+  };
 
   const handleSave = async () => {
     if (selectedPlan === currentPlan) return;
@@ -994,7 +1006,7 @@ function ChangePlanDialog({ open, onOpenChange, currentPlan, onSaved }: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ action: 'createCheckout', plan: selectedPlan }),
+          body: JSON.stringify({ action: 'createCheckout', plan: selectedPlan, billingPeriod: billingPeriod === 'annually' ? 'yearly' : 'monthly' }),
         });
         const data = await response.json();
         if (data.checkoutUrl) {
@@ -1030,52 +1042,140 @@ function ChangePlanDialog({ open, onOpenChange, currentPlan, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Change Plan</DialogTitle>
-          <DialogDescription>
-            Select a plan for your organization
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto py-2">
-          {plans.map((plan) => {
-            const isSelected = selectedPlan === plan.id;
-            const isCurrent = currentPlan === plan.id;
+      <DialogContent className="sm:max-w-4xl w-full max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <div className="px-8 pt-8 pb-6 border-b bg-gradient-to-br from-background to-muted/30">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Choose a Plan</DialogTitle>
+            <DialogDescription className="text-base mt-1">
+              Select the plan that works best for your organization
+            </DialogDescription>
+          </DialogHeader>
 
-            return (
-              <Card
-                key={plan.id}
-                onClick={() => setSelectedPlan(plan.id)}
-                className={`cursor-pointer p-4 ${
-                  isSelected
-                    ? "ring-2 ring-primary"
-                    : "hover-elevate"
-                }`}
-                data-testid={`button-plan-${plan.id}`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <h4 className="font-semibold">{plan.name}</h4>
-                  {isCurrent && <Badge variant="secondary" className="text-xs">Current</Badge>}
-                </div>
-                <p className="text-lg font-bold mb-3" data-testid={`text-plan-price-${plan.id}`}>{plan.price}</p>
-                <ul className="space-y-1.5 text-sm text-muted-foreground">
-                  {plan.features.map((f, i) => (
-                    <li key={i} className="flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-500 flex-shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            );
-          })}
+          {/* Billing period toggle */}
+          <div className="flex items-center justify-center gap-1 p-1 bg-muted rounded-xl w-fit mx-auto mt-5">
+            <button
+              onClick={() => setBillingPeriod('monthly')}
+              className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+                billingPeriod === 'monthly'
+                  ? 'bg-background shadow text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingPeriod('annually')}
+              className={`px-5 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${
+                billingPeriod === 'annually'
+                  ? 'bg-background shadow text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Annually
+              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">
+                Save 15%
+              </span>
+            </button>
+          </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={selectedPlan === currentPlan || isSaving} data-testid="button-confirm-plan-change">
-            {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : "Confirm Plan Change"}
-          </Button>
-        </DialogFooter>
+
+        {/* Plans grid */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {plans.map((plan) => {
+              const isSelected = selectedPlan === plan.id;
+              const isCurrent  = currentPlan === plan.id;
+              const price      = getPrice(plan);
+
+              return (
+                <div
+                  key={plan.id}
+                  onClick={() => setSelectedPlan(plan.id)}
+                  data-testid={`button-plan-${plan.id}`}
+                  className={`relative cursor-pointer rounded-2xl border-2 p-5 flex flex-col gap-4 transition-all duration-200 hover:shadow-md ${
+                    isSelected
+                      ? 'border-primary ring-2 ring-primary/30 bg-primary/5 shadow-md'
+                      : plan.highlight
+                      ? 'border-primary/30 bg-gradient-to-b from-primary/[0.03] to-transparent hover:border-primary/50 hover:shadow'
+                      : 'border-border bg-card hover:border-muted-foreground/30 hover:shadow'
+                  }`}
+                >
+                  {/* Most Popular badge */}
+                  {plan.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="inline-flex items-center text-xs font-semibold bg-primary text-primary-foreground px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
+                        ★ Most Popular
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Plan name + current badge */}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-bold text-base">{plan.name}</h4>
+                      {isCurrent && (
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-medium">
+                          Current
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{plan.description}</p>
+                  </div>
+
+                  {/* Price */}
+                  <div className="border-t border-border/50 pt-3">
+                    <p className="text-3xl font-extrabold tracking-tight" data-testid={`text-plan-price-${plan.id}`}>
+                      {price.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{price.sub}</p>
+                  </div>
+
+                  {/* Features */}
+                  <ul className="space-y-2 flex-1">
+                    {plan.features.map((f, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Selected indicator */}
+                  {isSelected && (
+                    <div className="flex items-center justify-center gap-1.5 text-sm font-semibold text-primary border border-primary/30 bg-primary/10 rounded-lg py-1.5">
+                      <Check className="h-4 w-4" />
+                      Selected
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 py-5 border-t bg-muted/20 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            All plans include a 14-day free trial. No credit card required for Free plan.
+          </p>
+          <div className="flex items-center gap-3 shrink-0">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={selectedPlan === currentPlan || isSaving}
+              data-testid="button-confirm-plan-change"
+              className="px-6"
+            >
+              {isSaving
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
+                : "Confirm Plan Change"
+              }
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

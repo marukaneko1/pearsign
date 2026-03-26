@@ -97,8 +97,8 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
       );
     }
 
-    const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(',')[0]?.trim() || request.headers.get("x-real-ip") || null;
+    const userAgent = request.headers.get("user-agent") || null;
 
     // Update to in_progress if pending
     const updatedSubmission = await FusionFormsService.updateSubmissionStatus(
@@ -143,8 +143,8 @@ export async function POST(request: NextRequest, context: RouteParams) {
       );
     }
 
-    const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(',')[0]?.trim() || request.headers.get("x-real-ip") || null;
+    const userAgent = request.headers.get("user-agent") || null;
 
     // Complete the submission
     const completedSubmission = await FusionFormsService.completeSubmission(

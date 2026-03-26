@@ -5,15 +5,24 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { FusionFormsService, FusionFormStatus } from "@/lib/fusion-forms";
+import { withTenant, type TenantApiContext } from "@/lib/tenant-middleware";
 
 interface RouteParams {
-  params: Promise<{ id: string }>;
+  id: string;
 }
 
-export async function GET(request: NextRequest, context: RouteParams) {
+export const GET = withTenant<RouteParams>(async (
+  _request: NextRequest,
+  { tenantId }: TenantApiContext,
+  params?: RouteParams
+) => {
   try {
-    const { id } = await context.params;
-    const form = await FusionFormsService.getForm(id);
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: "Form ID required" }, { status: 400 });
+    }
+
+    const form = await FusionFormsService.getForm(id, tenantId);
 
     if (!form) {
       return NextResponse.json(
@@ -30,11 +39,19 @@ export async function GET(request: NextRequest, context: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function PATCH(request: NextRequest, context: RouteParams) {
+export const PATCH = withTenant<RouteParams>(async (
+  request: NextRequest,
+  { tenantId }: TenantApiContext,
+  params?: RouteParams
+) => {
   try {
-    const { id } = await context.params;
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: "Form ID required" }, { status: 400 });
+    }
+
     const body = await request.json();
 
     if (body.status && Object.keys(body).length === 1) {
@@ -46,7 +63,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
         );
       }
 
-      const form = await FusionFormsService.updateFormStatus(id, body.status);
+      const form = await FusionFormsService.updateFormStatus(id, body.status, tenantId);
       if (!form) {
         return NextResponse.json(
           { error: "FusionForm not found" },
@@ -66,7 +83,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
       requireEmail: body.requireEmail,
       allowMultipleSubmissions: body.allowMultipleSubmissions,
       customBranding: body.customBranding,
-    });
+    }, tenantId);
 
     if (!form) {
       return NextResponse.json(
@@ -83,12 +100,20 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(request: NextRequest, context: RouteParams) {
+export const DELETE = withTenant<RouteParams>(async (
+  _request: NextRequest,
+  { tenantId }: TenantApiContext,
+  params?: RouteParams
+) => {
   try {
-    const { id } = await context.params;
-    const deleted = await FusionFormsService.deleteForm(id);
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: "Form ID required" }, { status: 400 });
+    }
+
+    const deleted = await FusionFormsService.deleteForm(id, tenantId);
 
     if (!deleted) {
       return NextResponse.json(
@@ -105,4 +130,4 @@ export async function DELETE(request: NextRequest, context: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

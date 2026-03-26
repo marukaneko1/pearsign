@@ -171,7 +171,7 @@ export const BulkSendService = {
 
     // Get template PDF and fields
     const templateResult = await sql`
-      SELECT * FROM templates WHERE id = ${job.templateId}::uuid AND org_id = ${orgId}
+      SELECT * FROM templates WHERE id = ${job.templateId} AND org_id = ${orgId}
     `;
 
     if (templateResult.length === 0) {
@@ -280,19 +280,24 @@ export const BulkSendService = {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
         const signingUrl = `${baseUrl}/sign/${signingToken}`;
 
-        // Send the signature request email
-        const emailResult = await sendSignatureRequestEmail({
-          documentName: `${job.title} - ${recipient.name}`,
-          recipientName: recipient.name,
-          recipientEmail: recipient.email,
-          senderName: 'PearSign',
-          senderEmail: process.env.SENDGRID_FROM_EMAIL || 'no-reply@premiumcapital.com',
-          message: job.customMessage || undefined,
-          signingUrl,
-        });
+        // Send the signature request email (skip in dev if no email service configured)
+        const hasSendGrid = !!(process.env.SENDGRID_API_KEY);
+        if (hasSendGrid) {
+          const emailResult = await sendSignatureRequestEmail({
+            documentName: `${job.title} - ${recipient.name}`,
+            recipientName: recipient.name,
+            recipientEmail: recipient.email,
+            senderName: 'PearSign',
+            senderEmail: process.env.SENDGRID_FROM_EMAIL || 'no-reply@premiumcapital.com',
+            message: job.customMessage || undefined,
+            signingUrl,
+          });
 
-        if (!emailResult.success) {
-          throw new Error(emailResult.error || 'Failed to send email');
+          if (!emailResult.success) {
+            throw new Error(emailResult.error || 'Failed to send email');
+          }
+        } else {
+          console.log(`[Bulk Send] Email skipped (no SendGrid configured). Signing URL for ${recipient.email}: ${signingUrl}`);
         }
 
         // Update recipient as sent

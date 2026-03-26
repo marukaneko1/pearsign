@@ -99,8 +99,8 @@ export const POST = withTenant(async (request: NextRequest, { tenantId }: Tenant
     let certificateError: string | null = null;
 
     try {
-      console.log("[Self-Sign API] Attempting digital signature...");
-      console.log("[Self-Sign API] PDF buffer size:", pdfBuffer.length, "bytes");
+      if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] Attempting digital signature...");
+      if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] PDF buffer size:", pdfBuffer.length, "bytes");
       const pdfBytesArr = new Uint8Array(pdfBuffer);
       const result = await signPdfDocument({
         pdfBytes: pdfBytesArr,
@@ -112,9 +112,9 @@ export const POST = withTenant(async (request: NextRequest, { tenantId }: Tenant
       });
       pdfBuffer = Buffer.from(result.signedPdfBytes);
       certificateUsed = result.certificateInfo;
-      console.log("[Self-Sign API] Digital signature applied successfully!");
-      console.log("[Self-Sign API] Certificate:", certificateUsed.subject);
-      console.log("[Self-Sign API] Signed PDF size:", pdfBuffer.length, "bytes");
+      if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] Digital signature applied successfully!");
+      if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] Certificate:", certificateUsed.subject);
+      if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] Signed PDF size:", pdfBuffer.length, "bytes");
     } catch (certErr) {
       const errMsg = certErr instanceof Error ? certErr.message : String(certErr);
       console.error("[Self-Sign API] Digital signature FAILED:", errMsg);
@@ -135,7 +135,7 @@ export const POST = withTenant(async (request: NextRequest, { tenantId }: Tenant
       );
       pdfObjectPath = storageResult.objectPath;
       pdfDataForDb = null;
-      console.log("[Self-Sign API] PDF stored in Object Storage:", pdfObjectPath);
+      if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] PDF stored in Object Storage:", pdfObjectPath);
     } catch (storageErr) {
       console.warn("[Self-Sign API] Object Storage failed, storing in DB:", storageErr);
     }
@@ -167,7 +167,7 @@ export const POST = withTenant(async (request: NextRequest, { tenantId }: Tenant
       RETURNING id, title, file_url as signed_filename, signed_at, created_at
     `;
 
-    console.log("[Self-Sign API] Document saved:", docId);
+    if (process.env.NODE_ENV !== 'production') console.log("[Self-Sign API] Document saved:", docId);
 
     const signedPdfBase64 = certificateUsed ? pdfBuffer.toString('base64') : null;
 

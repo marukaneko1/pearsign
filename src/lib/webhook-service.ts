@@ -96,7 +96,7 @@ async function deliverWebhook(
     try {
       if (attempt > 0) {
         const delay = calculateRetryDelay(attempt - 1);
-        console.log(`[Webhook] Retry attempt ${attempt} for ${url}, waiting ${Math.round(delay)}ms`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Webhook] Retry attempt ${attempt} for ${url}, waiting ${Math.round(delay)}ms`);
         await sleep(delay);
       }
 
@@ -134,16 +134,16 @@ async function deliverWebhook(
           WHERE id = ${webhookId}
         `;
 
-        console.log(`[Webhook] Successfully delivered to ${url} after ${attempts} attempt(s)`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Webhook] Successfully delivered to ${url} after ${attempts} attempt(s)`);
         return { success: true, status: response.status, body: lastResponseBody, attempts };
       }
 
       if (response.status >= 400 && response.status < 500) {
-        console.log(`[Webhook] Client error ${response.status}, not retrying`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Webhook] Client error ${response.status}, not retrying`);
         break;
       }
 
-      console.log(`[Webhook] Server error ${response.status}, will retry`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Webhook] Server error ${response.status}, will retry`);
 
     } catch (error) {
       lastError = error as Error;
@@ -293,7 +293,7 @@ export async function triggerWebhooks(
       })
     );
 
-    console.log(`[Webhook] Triggered ${webhooks.length} webhooks for ${eventType}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[Webhook] Triggered ${webhooks.length} webhooks for ${eventType}`);
   } catch (error) {
     console.error("[Webhook] Failed to trigger webhooks:", error);
   }

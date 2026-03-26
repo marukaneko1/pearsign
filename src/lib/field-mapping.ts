@@ -512,6 +512,18 @@ export const FieldMappingService = {
     const fields = (template.fields as TemplateFieldMapping[]) || [];
     const signerRoles = (template.signer_roles as SignerRole[]) || [];
 
+    // Look up current version from template_versions table
+    let currentVersion = 1;
+    try {
+      const { TemplateVersioningService } = await import('./template-versioning');
+      const latestVersion = await TemplateVersioningService.getLatestVersion(templateId, orgId);
+      if (latestVersion) {
+        currentVersion = latestVersion.version;
+      }
+    } catch {
+      // template_versions table may not exist yet; fall back to version 1
+    }
+
     return {
       templateId: template.id as string,
       name: template.name as string,
@@ -526,7 +538,7 @@ export const FieldMappingService = {
       metadata: {
         createdAt: (template.created_at as Date).toISOString(),
         updatedAt: (template.updated_at as Date).toISOString(),
-        version: 1, // TODO: Implement versioning
+        version: currentVersion,
         fieldCount: fields.length,
       },
     };

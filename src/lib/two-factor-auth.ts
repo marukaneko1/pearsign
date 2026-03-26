@@ -67,7 +67,7 @@ export async function initializeTwoFactorTable(): Promise<void> {
     ON two_factor_auth(user_id, enabled)
   `;
 
-  console.log('[TwoFactorAuth] Table initialized');
+  if (process.env.NODE_ENV !== 'production') console.log('[TwoFactorAuth] Table initialized');
 }
 
 // ============== ENCRYPTION ==============

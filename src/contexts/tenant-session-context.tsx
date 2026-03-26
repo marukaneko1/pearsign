@@ -54,7 +54,7 @@ export function TenantSessionProvider({ children }: TenantSessionProviderProps) 
   const [session, setSession] = useState<TenantSessionUser | null>(null);
 
   const refreshSession = useCallback(async () => {
-    console.log('[TenantSessionContext] Refreshing session...');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantSessionContext] Refreshing session...');
     try {
       const response = await fetch('/api/tenant/session', {
         credentials: 'include', // Ensure cookies are sent
@@ -62,7 +62,7 @@ export function TenantSessionProvider({ children }: TenantSessionProviderProps) 
       });
       const data = await response.json();
 
-      console.log('[TenantSessionContext] Session response:', {
+      if (process.env.NODE_ENV !== 'production') console.log('[TenantSessionContext] Session response:', {
         authenticated: data.authenticated,
         hasSession: !!data.session,
         userEmail: data.session?.userEmail,
@@ -71,9 +71,9 @@ export function TenantSessionProvider({ children }: TenantSessionProviderProps) 
 
       if (data.authenticated && data.session) {
         setSession(data.session);
-        console.log('[TenantSessionContext] Session SET for:', data.session.userEmail);
+        if (process.env.NODE_ENV !== 'production') console.log('[TenantSessionContext] Session SET for:', data.session.userEmail);
       } else {
-        console.log('[TenantSessionContext] No valid session, setting to null');
+        if (process.env.NODE_ENV !== 'production') console.log('[TenantSessionContext] No valid session, setting to null');
         setSession(null);
       }
     } catch (error) {

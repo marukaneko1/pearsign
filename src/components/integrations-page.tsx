@@ -295,9 +295,9 @@ export function IntegrationsPage({ onNavigateToSettings }: IntegrationsPageProps
         }
       }
 
-      // For other OAuth integrations, show coming soon
+      // For other OAuth integrations without direct OAuth support, show manual config
       setSelectedIntegration(integration);
-      setTestResult({ success: false, message: `${integration.name} OAuth integration coming soon. Please configure manually for now.` });
+      setTestResult({ success: false, message: `${integration.name} OAuth sign-in is not yet available. You can configure this integration manually using the API credentials below.` });
       setConfigValues({});
       setConnectDialogOpen(true);
       return;
@@ -525,14 +525,14 @@ export function IntegrationsPage({ onNavigateToSettings }: IntegrationsPageProps
           </p>
           <div className="flex justify-center gap-3">
             <Button
-              onClick={() => window.location.href = '/auth/signin'}
+              onClick={() => window.location.href = '/login'}
               className="bg-blue-600 hover:bg-blue-700"
             >
               Sign In
             </Button>
             <Button
               variant="outline"
-              onClick={() => window.location.href = '/auth/signup'}
+              onClick={() => window.location.href = '/login'}
             >
               Create Account
             </Button>

@@ -182,7 +182,7 @@ async function seedInvoicesForTenant(tenantId: string): Promise<number> {
   `;
 
   if (parseInt(existing[0]?.count || '0') > 0) {
-    console.log(`[SeedInvoices] Tenant ${tenantId} already has invoices, skipping`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[SeedInvoices] Tenant ${tenantId} already has invoices, skipping`);
     return 0;
   }
 
@@ -220,7 +220,7 @@ async function seedInvoicesForTenant(tenantId: string): Promise<number> {
     created++;
   }
 
-  console.log(`[SeedInvoices] Created ${created} invoices for tenant ${tenantId}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[SeedInvoices] Created ${created} invoices for tenant ${tenantId}`);
   return created;
 }
 
@@ -250,7 +250,7 @@ export async function DELETE(request: NextRequest) {
 
     if (tenantId) {
       await sql`DELETE FROM billing_invoices WHERE tenant_id = ${tenantId}`;
-      await sql`DELETE FROM tenant_invoices WHERE org_id = ${tenantId}`.catch(() => {});
+      await sql`DELETE FROM tenant_invoices WHERE org_id = ${tenantId}`.catch(err => console.warn('[SeedInvoices] tenant_invoices table may not exist:', err));
       return NextResponse.json({
         success: true,
         message: `Deleted all invoices for tenant ${tenantId}`,
@@ -259,7 +259,7 @@ export async function DELETE(request: NextRequest) {
 
     // Delete all
     const result = await sql`DELETE FROM billing_invoices RETURNING id`;
-    await sql`DELETE FROM tenant_invoices`.catch(() => {});
+    await sql`DELETE FROM tenant_invoices`.catch(err => console.warn('[SeedInvoices] tenant_invoices table may not exist:', err));
 
     return NextResponse.json({
       success: true,

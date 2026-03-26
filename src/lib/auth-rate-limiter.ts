@@ -169,11 +169,11 @@ export function recordLoginAttempt(ip: string, email: string, success: boolean):
     // Check for lockout threshold
     if (emailEntry.attempts >= LOGIN_RATE_LIMIT.lockoutThreshold) {
       emailEntry.lockedUntil = now + LOGIN_RATE_LIMIT.lockoutDurationMs;
-      console.log(`[AuthRateLimit] Account locked: ${normalizedEmail}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[AuthRateLimit] Account locked: ${normalizedEmail}`);
     }
   }
 
-  console.log(`[AuthRateLimit] Login attempt recorded - IP: ${ip} (${ipEntry.attempts}/${LOGIN_RATE_LIMIT.maxAttemptsPerIP}), Email: ${normalizedEmail} (${emailEntry.attempts}/${LOGIN_RATE_LIMIT.maxAttemptsPerEmail}), Success: ${success}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[AuthRateLimit] Login attempt recorded - IP: ${ip} (${ipEntry.attempts}/${LOGIN_RATE_LIMIT.maxAttemptsPerIP}), Email: ${normalizedEmail} (${emailEntry.attempts}/${LOGIN_RATE_LIMIT.maxAttemptsPerEmail}), Success: ${success}`);
 }
 
 /**
@@ -249,7 +249,7 @@ export function recordPasswordResetAttempt(ip: string, email: string): void {
   }
   emailEntry.attempts++;
 
-  console.log(`[AuthRateLimit] Password reset recorded - IP: ${ip} (${ipEntry.attempts}/${PASSWORD_RESET_RATE_LIMIT.maxAttemptsPerIP}), Email: ${normalizedEmail} (${emailEntry.attempts}/${PASSWORD_RESET_RATE_LIMIT.maxAttemptsPerEmail})`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[AuthRateLimit] Password reset recorded - IP: ${ip} (${ipEntry.attempts}/${PASSWORD_RESET_RATE_LIMIT.maxAttemptsPerIP}), Email: ${normalizedEmail} (${emailEntry.attempts}/${PASSWORD_RESET_RATE_LIMIT.maxAttemptsPerEmail})`);
 }
 
 /**

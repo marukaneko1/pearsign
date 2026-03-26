@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
 import { sql } from '@/lib/db';
 import { ImmutableAuditLogService } from '@/lib/immutable-audit-log';
+import { logSystemEvent } from '@/lib/audit-log';
 import { getCurrentSessionId } from '@/lib/tenant-session';
 import { terminateAllOtherSessions } from '@/lib/session-management';
 import { enforce2FA } from '@/lib/two-factor-auth';
@@ -153,6 +154,14 @@ export const POST = withTenant(
           event: 'password_changed',
           sessionsTerminated: terminatedCount,
         },
+      });
+
+      logSystemEvent('auth.password_changed', {
+        orgId: tenantId,
+        userId,
+        actorId: userId,
+        actorEmail: userEmail,
+        details: { sessionsTerminated: terminatedCount },
       });
 
       return NextResponse.json({

@@ -82,7 +82,7 @@ export async function initializeSessionTable(): Promise<void> {
   `;
 
   _tableInitialized = true;
-  console.log('[TenantSession] Table initialized');
+  if (process.env.NODE_ENV !== 'production') console.log('[TenantSession] Table initialized');
 }
 
 // ============== SESSION CACHE ==============
@@ -126,7 +126,7 @@ export async function createTenantSession(data: {
   ipAddress?: string;
   userAgent?: string;
 }): Promise<TenantSession> {
-  console.log('[TenantSession] Creating session for:', {
+  if (process.env.NODE_ENV !== 'production') console.log('[TenantSession] Creating session for:', {
     userId: data.userId,
     tenantId: data.tenantId,
     userEmail: data.userEmail,
@@ -143,7 +143,7 @@ export async function createTenantSession(data: {
       AND tu.status = 'active'
   `;
 
-  console.log('[TenantSession] Membership query result:', {
+  if (process.env.NODE_ENV !== 'production') console.log('[TenantSession] Membership query result:', {
     found: membership.length > 0,
     count: membership.length,
     tenantName: membership[0]?.tenant_name,
@@ -221,14 +221,14 @@ export async function createTenantSession(data: {
     expires: expiresAt,
   });
 
-  console.log('[TenantSession] Created session for', data.userEmail, 'in tenant', data.tenantId, 'sessionId:', sessionId.substring(0, 20) + '...');
+  if (process.env.NODE_ENV !== 'production') console.log('[TenantSession] Created session for', data.userEmail, 'in tenant', data.tenantId, 'sessionId:', sessionId.substring(0, 20) + '...');
 
   // Verify the session was actually inserted
   const verifyInsert = await sql`SELECT id FROM tenant_sessions WHERE id = ${sessionId}`;
   if (verifyInsert.length === 0) {
     console.error('[TenantSession] CRITICAL: Session was not inserted into database!');
   } else {
-    console.log('[TenantSession] Session verified in database');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantSession] Session verified in database');
   }
 
   return session;
@@ -260,7 +260,7 @@ export async function getTenantSession(): Promise<TenantSession | null> {
       const lastUpdate = _lastActivityUpdate.get(sessionId) || 0;
       if (now - lastUpdate > ACTIVITY_UPDATE_INTERVAL_MS) {
         _lastActivityUpdate.set(sessionId, now);
-        sql`UPDATE tenant_sessions SET last_activity = NOW() WHERE id = ${sessionId}`.catch(() => {});
+        sql`UPDATE tenant_sessions SET last_activity = NOW() WHERE id = ${sessionId}`.catch(err => console.warn('[TenantSession] Failed to update last_activity:', err));
       }
       return cached;
     }
@@ -279,7 +279,7 @@ export async function getTenantSession(): Promise<TenantSession | null> {
     const row = result[0];
 
     _lastActivityUpdate.set(sessionId, Date.now());
-    sql`UPDATE tenant_sessions SET last_activity = NOW() WHERE id = ${sessionId}`.catch(() => {});
+    sql`UPDATE tenant_sessions SET last_activity = NOW() WHERE id = ${sessionId}`.catch(err => console.warn('[TenantSession] Failed to update last_activity:', err));
 
     const session: TenantSession = {
       sessionId: row.id,

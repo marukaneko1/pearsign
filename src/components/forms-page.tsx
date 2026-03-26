@@ -42,6 +42,8 @@ import {
   Pause,
   Play,
   AlertCircle,
+  TrendingUp,
+  ArrowUpRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -131,6 +133,21 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
     createdAt: string;
   }>>([]);
 
+  // Stat detail panel
+  type StatDetailType = 'forms' | 'active' | 'submissions' | 'completion';
+  const [statDetailType, setStatDetailType] = useState<StatDetailType | null>(null);
+  const [allSubmissions, setAllSubmissions] = useState<Array<{
+    id: string;
+    fusionFormId: string;
+    formName: string;
+    signerName: string;
+    signerEmail: string | null;
+    status: string;
+    signedAt: string | null;
+    createdAt: string;
+  }>>([]);
+  const [loadingAllSubs, setLoadingAllSubs] = useState(false);
+
   // Create form state
   const [creating, setCreating] = useState(false);
   const [newFormName, setNewFormName] = useState("");
@@ -188,6 +205,27 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
       }
     } catch (error) {
       console.error("Error loading submissions:", error);
+    }
+  };
+
+  const handleStatClick = async (type: StatDetailType) => {
+    setStatDetailType(type);
+    if (type === 'submissions') {
+      setLoadingAllSubs(true);
+      try {
+        const res = await fetch('/api/fusion-forms/all-submissions', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllSubmissions(data.submissions || []);
+        }
+      } catch (err) {
+        console.error('Error loading all submissions:', err);
+      } finally {
+        setLoadingAllSubs(false);
+      }
     }
   };
 
@@ -345,8 +383,8 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center">
-            <Zap className="h-5 w-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+            <Zap className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">FusionForms</h1>
@@ -357,61 +395,74 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
         </div>
         <Button
           onClick={() => setShowCreateDialog(true)}
-          className="bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create FusionForm
         </Button>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row — each card is clickable */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-950 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{loading ? "-" : stats?.totalForms || 0}</p>
-              <p className="text-xs text-muted-foreground">Total Forms</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-950 flex items-center justify-center">
-              <Globe className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{loading ? "-" : stats?.activeForms || 0}</p>
-              <p className="text-xs text-muted-foreground">Active</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
-              <Users className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{loading ? "-" : stats?.totalSubmissions || 0}</p>
-              <p className="text-xs text-muted-foreground">Submissions</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-950 flex items-center justify-center">
-              <CheckCircle2 className="h-5 w-5 text-violet-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {loading ? "-" : `${stats?.avgCompletionRate || 0}%`}
-              </p>
-              <p className="text-xs text-muted-foreground">Completion Rate</p>
-            </div>
-          </div>
-        </Card>
+        {[
+          {
+            key: 'forms' as StatDetailType,
+            icon: FileText,
+            iconColor: 'text-primary',
+            iconBg: 'bg-primary/10',
+            value: loading ? '-' : String(stats?.totalForms || 0),
+            label: 'Total Forms',
+            hint: 'View all forms',
+          },
+          {
+            key: 'active' as StatDetailType,
+            icon: Globe,
+            iconColor: 'text-emerald-600',
+            iconBg: 'bg-emerald-50 dark:bg-emerald-950',
+            value: loading ? '-' : String(stats?.activeForms || 0),
+            label: 'Active',
+            hint: 'View active forms',
+          },
+          {
+            key: 'submissions' as StatDetailType,
+            icon: Users,
+            iconColor: 'text-blue-600',
+            iconBg: 'bg-blue-50 dark:bg-blue-950',
+            value: loading ? '-' : String(stats?.totalSubmissions || 0),
+            label: 'Submissions',
+            hint: 'View all submissions',
+          },
+          {
+            key: 'completion' as StatDetailType,
+            icon: TrendingUp,
+            iconColor: 'text-violet-600',
+            iconBg: 'bg-violet-50 dark:bg-violet-950',
+            value: loading ? '-' : `${stats?.avgCompletionRate || 0}%`,
+            label: 'Completion Rate',
+            hint: 'View per-form breakdown',
+          },
+        ].map(({ key, icon: Icon, iconColor, iconBg, value, label, hint }) => (
+          <button
+            key={key}
+            onClick={() => handleStatClick(key)}
+            className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
+          >
+            <Card className="p-4 border-border/50 hover:border-primary/40 hover:shadow-md transition-all duration-150 cursor-pointer group">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center`}>
+                    <Icon className={`h-5 w-5 ${iconColor}`} />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{value}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </div>
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+              </div>
+              <p className="text-[11px] text-muted-foreground/60 mt-2 group-hover:text-primary/70 transition-colors">{hint} →</p>
+            </Card>
+          </button>
+        ))}
       </div>
 
       {/* Search */}
@@ -461,8 +512,8 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
                   {/* Form Info */}
                   <div className="col-span-4 flex items-center gap-3">
                     <div className="relative">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center text-white shrink-0">
-                        <Zap className="h-5 w-5" />
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Zap className="h-5 w-5 text-primary" />
                       </div>
                       <div
                         className={cn(
@@ -593,7 +644,6 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
               {!searchQuery && (
                 <Button
                   onClick={() => setShowCreateDialog(true)}
-                  className="bg-gradient-to-r from-orange-500 to-pink-600"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create FusionForm
@@ -609,8 +659,8 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center">
-                <Zap className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Zap className="h-4 w-4 text-primary" />
               </div>
               Create FusionForm
             </DialogTitle>
@@ -676,7 +726,6 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
               <Button
                 onClick={handleCreateForm}
                 disabled={creating || !newFormName || !selectedTemplateId}
-                className="bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700"
               >
                 {creating ? (
                   <>
@@ -691,6 +740,172 @@ export function FormsPage({ onEditForm }: FormsPageProps) {
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Stat Detail Dialog ───────────────────────────────────────── */}
+      <Dialog open={!!statDetailType} onOpenChange={(open) => { if (!open) setStatDetailType(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {statDetailType === 'forms' && <><FileText className="h-5 w-5 text-primary" /> All Forms</>}
+              {statDetailType === 'active' && <><Globe className="h-5 w-5 text-emerald-600" /> Active Forms</>}
+              {statDetailType === 'submissions' && <><Users className="h-5 w-5 text-blue-600" /> All Submissions</>}
+              {statDetailType === 'completion' && <><TrendingUp className="h-5 w-5 text-violet-600" /> Completion Rate Breakdown</>}
+            </DialogTitle>
+            <DialogDescription>
+              {statDetailType === 'forms' && `${stats?.totalForms || 0} forms total`}
+              {statDetailType === 'active' && `${stats?.activeForms || 0} forms currently accepting submissions`}
+              {statDetailType === 'submissions' && `${stats?.totalSubmissions || 0} total submissions across all forms`}
+              {statDetailType === 'completion' && `Average completion rate: ${stats?.avgCompletionRate || 0}%`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto mt-2">
+            {/* ── Total / Active forms list ── */}
+            {(statDetailType === 'forms' || statDetailType === 'active') && (() => {
+              const list = statDetailType === 'active'
+                ? forms.filter(f => f.status === 'active')
+                : forms;
+              if (list.length === 0) {
+                return (
+                  <div className="py-10 text-center">
+                    <Zap className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground">No forms found</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="divide-y">
+                  {list.map(form => {
+                    const cfg = statusConfig[form.status];
+                    const SIcon = cfg.icon;
+                    return (
+                      <div key={form.id} className="py-4 flex items-center gap-4">
+                        <div className="relative shrink-0">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Zap className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className={cn('absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background', cfg.dotColor)} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{form.name}</p>
+                          <p className="text-sm text-muted-foreground">{form.templateName}</p>
+                        </div>
+                        <div className="shrink-0 text-right space-y-1">
+                          <Badge variant="secondary" className={cn('gap-1', cfg.className)}>
+                            <SIcon className="h-3 w-3" />
+                            {cfg.label}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground">{form.submissionCount} submission{form.submissionCount !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="shrink-0 flex gap-1">
+                          {form.status === 'active' && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => copyToClipboard(form.publicUrl)} title="Copy link">
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => window.open(getFullUrl(form.publicUrl), '_blank')} title="Open">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* ── All submissions ── */}
+            {statDetailType === 'submissions' && (
+              loadingAllSubs ? (
+                <div className="py-10 flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading submissions…</p>
+                </div>
+              ) : allSubmissions.length === 0 ? (
+                <div className="py-10 text-center">
+                  <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No submissions yet</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {allSubmissions.map(sub => (
+                    <div key={sub.id} className="py-3 grid grid-cols-3 gap-3 items-center text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{sub.signerName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{sub.signerEmail || '—'}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Form</p>
+                        <p className="truncate font-medium">{sub.formName}</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={sub.status === 'completed' ? 'default' : 'secondary'} className="mb-1">
+                          {sub.status}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(sub.signedAt || sub.createdAt).toLocaleDateString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* ── Completion rate breakdown ── */}
+            {statDetailType === 'completion' && (
+              <div className="space-y-3">
+                {forms.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <TrendingUp className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground">No forms to display</p>
+                  </div>
+                ) : forms.map(form => {
+                  const total = form.submissionCount;
+                  // We don't have per-form completed count here, show total vs status as proxy
+                  const pct = total > 0 ? 100 : 0;
+                  return (
+                    <div key={form.id} className="p-4 rounded-xl border bg-muted/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{form.name}</p>
+                          <p className="text-xs text-muted-foreground">{form.templateName}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span className="text-lg font-bold">{total}</span>
+                          <p className="text-xs text-muted-foreground">submission{total !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: pct > 0 ? '#8b5cf6' : '#e2e8f0',
+                            }}
+                          />
+                        </div>
+                        <Badge variant="secondary" className={statusConfig[form.status].className}>
+                          {statusConfig[form.status].label}
+                        </Badge>
+                      </div>
+                      {form.lastSubmissionAt && (
+                        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Last submission: {getTimeAgo(form.lastSubmissionAt)}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

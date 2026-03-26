@@ -17,11 +17,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const download = searchParams.get('download') === 'true';
 
-    console.log('[Invoice Preview] Generating sample invoice PDF...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoice Preview] Generating sample invoice PDF...');
 
     const pdf = await generatePreviewInvoice();
 
-    console.log('[Invoice Preview] PDF generated, size:', pdf.length, 'bytes');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoice Preview] PDF generated, size:', pdf.length, 'bytes');
 
     const disposition = download ? 'attachment' : 'inline';
 

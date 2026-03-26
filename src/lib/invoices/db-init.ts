@@ -34,14 +34,14 @@ export async function initializeInvoicingTables(): Promise<void> {
   }
 
   initializationInProgress = true;
-  console.log('[Invoicing] Starting database table initialization...');
+  if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Starting database table initialization...');
 
   try {
     // Create all tables in a single transaction-like sequence
     // Each table creation is separate to handle partial success
 
     // 1. INVOICES TABLE
-    console.log('[Invoicing] Creating invoices table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating invoices table...');
     await sql`
       CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
@@ -76,7 +76,7 @@ export async function initializeInvoicingTables(): Promise<void> {
         version INTEGER NOT NULL DEFAULT 1
       )
     `;
-    console.log('[Invoicing] ✓ invoices table ready');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ invoices table ready');
 
     try {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_address TEXT`;
@@ -91,13 +91,13 @@ export async function initializeInvoicingTables(): Promise<void> {
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes_internal TEXT`;
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_history JSONB NOT NULL DEFAULT '[]'`;
       await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring_config JSONB`;
-      console.log('[Invoicing] ✓ invoices table columns updated');
+      if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ invoices table columns updated');
     } catch (colError) {
       console.warn('[Invoicing] Warning adding columns (may already exist):', colError);
     }
 
     // 2. INVOICE NUMBER COUNTERS TABLE
-    console.log('[Invoicing] Creating invoice_number_counters table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating invoice_number_counters table...');
     await sql`
       CREATE TABLE IF NOT EXISTS invoice_number_counters (
         tenant_id TEXT PRIMARY KEY,
@@ -106,10 +106,10 @@ export async function initializeInvoicingTables(): Promise<void> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    console.log('[Invoicing] ✓ invoice_number_counters table ready');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ invoice_number_counters table ready');
 
     // 3. INVOICE AUDIT LOGS TABLE
-    console.log('[Invoicing] Creating invoice_audit_logs table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating invoice_audit_logs table...');
     await sql`
       CREATE TABLE IF NOT EXISTS invoice_audit_logs (
         id TEXT PRIMARY KEY,
@@ -124,10 +124,10 @@ export async function initializeInvoicingTables(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    console.log('[Invoicing] ✓ invoice_audit_logs table ready');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ invoice_audit_logs table ready');
 
     // 4. INVOICE TEMPLATES TABLE
-    console.log('[Invoicing] Creating invoice_templates table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating invoice_templates table...');
     await sql`
       CREATE TABLE IF NOT EXISTS invoice_templates (
         id TEXT PRIMARY KEY,
@@ -144,10 +144,10 @@ export async function initializeInvoicingTables(): Promise<void> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    console.log('[Invoicing] ✓ invoice_templates table ready');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ invoice_templates table ready');
 
     // 5. PAYMENT PROCESSOR CONFIGS TABLE
-    console.log('[Invoicing] Creating payment_processor_configs table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating payment_processor_configs table...');
     await sql`
       CREATE TABLE IF NOT EXISTS payment_processor_configs (
         id TEXT PRIMARY KEY,
@@ -162,10 +162,10 @@ export async function initializeInvoicingTables(): Promise<void> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    console.log('[Invoicing] ✓ payment_processor_configs table ready');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ payment_processor_configs table ready');
 
     // 6. PAYMENT LINKS TABLE
-    console.log('[Invoicing] Creating payment_links table...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating payment_links table...');
     await sql`
       CREATE TABLE IF NOT EXISTS payment_links (
         id TEXT PRIMARY KEY,
@@ -184,10 +184,10 @@ export async function initializeInvoicingTables(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    console.log('[Invoicing] ✓ payment_links table ready');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ payment_links table ready');
 
     // 7. Create indexes (safe to run multiple times)
-    console.log('[Invoicing] Creating indexes...');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] Creating indexes...');
     try {
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(tenant_id, status)`;
@@ -195,7 +195,7 @@ export async function initializeInvoicingTables(): Promise<void> {
       await sql`CREATE INDEX IF NOT EXISTS idx_invoice_templates_tenant ON invoice_templates(tenant_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_processor_configs_tenant ON payment_processor_configs(tenant_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_payment_links_invoice ON payment_links(invoice_id)`;
-      console.log('[Invoicing] ✓ indexes ready');
+      if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✓ indexes ready');
     } catch (indexError) {
       // Indexes are non-critical, log and continue
       console.warn('[Invoicing] Warning creating indexes (non-fatal):', indexError);
@@ -204,7 +204,7 @@ export async function initializeInvoicingTables(): Promise<void> {
     // Mark as verified
     tablesVerified = true;
     initializationError = null;
-    console.log('[Invoicing] ✅ All database tables initialized successfully');
+    if (process.env.NODE_ENV !== 'production') console.log('[Invoicing] ✅ All database tables initialized successfully');
 
   } catch (error) {
     console.error('[Invoicing] ❌ Failed to initialize tables:', error);

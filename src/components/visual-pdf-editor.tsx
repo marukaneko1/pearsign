@@ -59,7 +59,7 @@ import { usePinchZoom, pinchZoomStyles } from "@/hooks/use-pinch-zoom";
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 }
 
 interface VisualPDFEditorProps {
@@ -106,7 +106,7 @@ interface HistoryState {
 }
 
 export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFEditorProps) {
-  console.log('🎨 VisualPDFEditor mounted with file:', file.name, 'size:', file.size, 'type:', file.type);
+  if (process.env.NODE_ENV !== 'production') console.log('🎨 VisualPDFEditor mounted with file:', file.name, 'size:', file.size, 'type:', file.type);
 
   const [pdfDocument, setPdfDocument] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -146,18 +146,18 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
   useEffect(() => {
     const loadPDF = async () => {
       try {
-        console.log('📄 Starting PDF load...');
+        if (process.env.NODE_ENV !== 'production') console.log('📄 Starting PDF load...');
         setIsLoading(true);
         const arrayBuffer = await file.arrayBuffer();
-        console.log('✅ PDF arrayBuffer loaded, size:', arrayBuffer.byteLength);
+        if (process.env.NODE_ENV !== 'production') console.log('✅ PDF arrayBuffer loaded, size:', arrayBuffer.byteLength);
 
         // Store original PDF bytes for saving later
         originalPdfBytesRef.current = arrayBuffer;
 
-        console.log('🔄 Loading PDF with PDF.js...');
+        if (process.env.NODE_ENV !== 'production') console.log('🔄 Loading PDF with PDF.js...');
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
-        console.log('✅ PDF loaded successfully! Pages:', pdf.numPages);
+        if (process.env.NODE_ENV !== 'production') console.log('✅ PDF loaded successfully! Pages:', pdf.numPages);
 
         setPdfDocument(pdf);
         setTotalPages(pdf.numPages);
@@ -239,7 +239,7 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
   useEffect(() => {
     const renderPage = async () => {
       if (!pdfDocument || !canvasRef.current || !textLayerRef.current) {
-        console.log('⏸️ Skipping render - waiting for refs:', {
+        if (process.env.NODE_ENV !== 'production') console.log('⏸️ Skipping render - waiting for refs:', {
           pdfDocument: !!pdfDocument,
           canvasRef: !!canvasRef.current,
           textLayerRef: !!textLayerRef.current
@@ -265,8 +265,8 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
         const displayViewport = page.getViewport({ scale: zoom });
         const renderViewport = page.getViewport({ scale: renderScale });
 
-        console.log('📐 Display size:', displayViewport.width, 'x', displayViewport.height, 'at zoom:', zoom);
-        console.log('📐 Render size:', renderViewport.width, 'x', renderViewport.height, 'at scale:', renderScale);
+        if (process.env.NODE_ENV !== 'production') console.log('📐 Display size:', displayViewport.width, 'x', displayViewport.height, 'at zoom:', zoom);
+        if (process.env.NODE_ENV !== 'production') console.log('📐 Render size:', renderViewport.width, 'x', renderViewport.height, 'at scale:', renderScale);
 
         if (requestId !== renderRequestRef.current) return;
 
@@ -290,7 +290,7 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
         canvas.style.width = `${displayViewport.width}px`;
         canvas.style.height = `${displayViewport.height}px`;
 
-        console.log('🎨 Canvas size set to:', canvas.width, 'x', canvas.height, '(CSS:', canvas.style.width, 'x', canvas.style.height, ')');
+        if (process.env.NODE_ENV !== 'production') console.log('🎨 Canvas size set to:', canvas.width, 'x', canvas.height, '(CSS:', canvas.style.width, 'x', canvas.style.height, ')');
         context.clearRect(0, 0, canvas.width, canvas.height);
 
         // Enable high-quality rendering
@@ -299,7 +299,7 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
 
         // CRITICAL: Render PDF WITHOUT text layer (background + graphics only)
         // This prevents duplicate text (canvas text + our editable overlay)
-        console.log('🖼️ Starting PDF render (background only)...');
+        if (process.env.NODE_ENV !== 'production') console.log('🖼️ Starting PDF render (background only)...');
 
         // Set white background
         context.fillStyle = '#ffffff';
@@ -313,7 +313,7 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
         });
 
         await renderTask.promise;
-        console.log('✅ PDF background rendered (no text layer)!');
+        if (process.env.NODE_ENV !== 'production') console.log('✅ PDF background rendered (no text layer)!');
 
         if (requestId !== renderRequestRef.current) return;
 
@@ -329,7 +329,7 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
             const baseViewport = page.getViewport({ scale: 1.0 });
             const extractedTextSpans: TextSpan[] = [];
 
-            console.log(`📝 Extracting ${textContent.items.length} text items from page ${currentPage}`);
+            if (process.env.NODE_ENV !== 'production') console.log(`📝 Extracting ${textContent.items.length} text items from page ${currentPage}`);
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             textContent.items.forEach((item: any, index: number) => {
@@ -354,7 +354,7 @@ export function VisualPDFEditor({ file, onBack, onSendForSignature }: VisualPDFE
               }
             });
 
-            console.log('✅ Created', extractedTextSpans.length, 'editable text spans');
+            if (process.env.NODE_ENV !== 'production') console.log('✅ Created', extractedTextSpans.length, 'editable text spans');
 
             // Replace extracted text for this page (preserving user-added annotations)
             setTextSpans(prev => {

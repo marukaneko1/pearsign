@@ -11,8 +11,10 @@ import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
 import {
   getInvoice,
   updateInvoice,
+  adminUpdateInvoice,
   voidInvoice,
   type UpdateInvoiceInput,
+  type AdminUpdateInvoiceInput,
 } from '@/lib/invoices';
 
 export const GET = withTenant<{ id: string }>(async (
@@ -66,6 +68,38 @@ export const PUT = withTenant<{ id: string }>(async (
     return NextResponse.json(invoice);
   } catch (error) {
     console.error('[Invoice API] Update error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update invoice' },
+      { status: 400 }
+    );
+  }
+});
+
+/**
+ * PATCH /api/invoices/:id — Admin override update (any status, status change, amount_paid)
+ */
+export const PATCH = withTenant<{ id: string }>(async (
+  request: NextRequest,
+  { tenantId, context }: TenantApiContext,
+  params?: { id: string }
+) => {
+  try {
+    if (!params?.id) {
+      return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json() as AdminUpdateInvoiceInput;
+
+    const invoice = await adminUpdateInvoice(
+      tenantId,
+      params.id,
+      body,
+      context.user?.id
+    );
+
+    return NextResponse.json(invoice);
+  } catch (error) {
+    console.error('[Invoice API] Admin update error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update invoice' },
       { status: 400 }

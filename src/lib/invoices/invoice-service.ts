@@ -140,8 +140,8 @@ export async function createInvoice(
 
   const { lineItems, subtotal, taxTotal, total: rawTotal } = calculateLineItems(input.line_items);
 
-  const discountType = (input as any).discount_type || null;
-  const discountValue = Number((input as any).discount_value) || 0;
+  const discountType = input.discount_type || null;
+  const discountValue = Number(input.discount_value) || 0;
   let discountTotal = 0;
   if (discountType === 'percentage' && discountValue > 0) {
     discountTotal = Math.round((subtotal * discountValue / 100) * 100) / 100;
@@ -170,11 +170,11 @@ export async function createInvoice(
       ${input.customer_name},
       ${input.customer_email},
       ${input.customer_phone || null},
-      ${(input as any).customer_address || null},
-      ${(input as any).customer_city || null},
-      ${(input as any).customer_state || null},
-      ${(input as any).customer_zip || null},
-      ${(input as any).customer_country || null},
+      ${input.customer_address || null},
+      ${input.customer_city || null},
+      ${input.customer_state || null},
+      ${input.customer_zip || null},
+      ${input.customer_country || null},
       ${JSON.stringify(lineItems)},
       ${subtotal},
       ${taxTotal},
@@ -188,7 +188,7 @@ export async function createInvoice(
       ${input.due_date},
       ${input.memo || null},
       ${input.terms || null},
-      ${(input as any).po_number || null},
+      ${input.po_number || null},
       ${input.template_id || null},
       ${input.require_signature || false},
       ${input.require_signature_before_payment || false},
@@ -362,21 +362,19 @@ export async function updateInvoice(
     throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
   }
 
-  const inp = input as any;
-  const ext = existing as any;
   const customerName = input.customer_name ?? existing.customer_name;
   const customerEmail = input.customer_email ?? existing.customer_email;
   const customerPhone = input.customer_phone !== undefined ? input.customer_phone : existing.customer_phone;
-  const customerAddress = inp.customer_address !== undefined ? inp.customer_address : ext.customer_address;
-  const customerCity = inp.customer_city !== undefined ? inp.customer_city : ext.customer_city;
-  const customerState = inp.customer_state !== undefined ? inp.customer_state : ext.customer_state;
-  const customerZip = inp.customer_zip !== undefined ? inp.customer_zip : ext.customer_zip;
-  const customerCountry = inp.customer_country !== undefined ? inp.customer_country : ext.customer_country;
+  const customerAddress = input.customer_address !== undefined ? input.customer_address : existing.customer_address;
+  const customerCity = input.customer_city !== undefined ? input.customer_city : existing.customer_city;
+  const customerState = input.customer_state !== undefined ? input.customer_state : existing.customer_state;
+  const customerZip = input.customer_zip !== undefined ? input.customer_zip : existing.customer_zip;
+  const customerCountry = input.customer_country !== undefined ? input.customer_country : existing.customer_country;
   const issueDate = input.issue_date ?? existing.issue_date;
   const dueDate = input.due_date ?? existing.due_date;
   const memo = input.memo !== undefined ? input.memo : existing.memo;
   const terms = input.terms !== undefined ? input.terms : existing.terms;
-  const poNumber = inp.po_number !== undefined ? inp.po_number : ext.po_number;
+  const poNumber = input.po_number !== undefined ? input.po_number : existing.po_number;
   const currency = input.currency ?? existing.currency;
   const requireSignature = input.require_signature ?? existing.require_signature;
   const requireSignatureBeforePayment = input.require_signature_before_payment ?? existing.require_signature_before_payment;
@@ -394,8 +392,8 @@ export async function updateInvoice(
     rawTotal = calc.total;
   }
 
-  const discountType = inp.discount_type !== undefined ? inp.discount_type : ext.discount_type;
-  const discountValue = inp.discount_value !== undefined ? Number(inp.discount_value) || 0 : Number(ext.discount_value) || 0;
+  const discountType = input.discount_type !== undefined ? input.discount_type : existing.discount_type;
+  const discountValue = input.discount_value !== undefined ? Number(input.discount_value) || 0 : Number(existing.discount_value) || 0;
   let discountTotal = 0;
   if (discountType === 'percentage' && discountValue > 0) {
     discountTotal = Math.round((subtotal * discountValue / 100) * 100) / 100;
@@ -451,6 +449,124 @@ export async function updateInvoice(
     throw new Error('Failed to retrieve updated invoice');
   }
 
+  return updated;
+}
+
+// ============================================================================
+// Admin / Override Update (bypasses draft-only restriction)
+// ============================================================================
+
+export interface AdminUpdateInvoiceInput extends UpdateInvoiceInput {
+  status?: InvoiceStatus;
+  amount_paid?: number;
+}
+
+/**
+ * Force-update an invoice regardless of its current status.
+ * Intended for internal admin use only — allows changing status, amount paid,
+ * line items, dates, and customer details on any non-voided invoice.
+ */
+export async function adminUpdateInvoice(
+  tenantId: string,
+  invoiceId: string,
+  input: AdminUpdateInvoiceInput,
+  actorId?: string
+): Promise<Invoice> {
+  await ensureInvoicesTable();
+
+  const existing = await getInvoice(tenantId, invoiceId);
+  if (!existing) {
+    throw new Error('Invoice not found');
+  }
+
+  const customerName = input.customer_name ?? existing.customer_name;
+  const customerEmail = input.customer_email ?? existing.customer_email;
+  const customerPhone = input.customer_phone !== undefined ? input.customer_phone : existing.customer_phone;
+  const customerAddress = input.customer_address !== undefined ? input.customer_address : existing.customer_address;
+  const customerCity = input.customer_city !== undefined ? input.customer_city : existing.customer_city;
+  const customerState = input.customer_state !== undefined ? input.customer_state : existing.customer_state;
+  const customerZip = input.customer_zip !== undefined ? input.customer_zip : existing.customer_zip;
+  const customerCountry = input.customer_country !== undefined ? input.customer_country : existing.customer_country;
+  const issueDate = input.issue_date ?? existing.issue_date;
+  const dueDate = input.due_date ?? existing.due_date;
+  const memo = input.memo !== undefined ? input.memo : existing.memo;
+  const terms = input.terms !== undefined ? input.terms : existing.terms;
+  const poNumber = input.po_number !== undefined ? input.po_number : existing.po_number;
+  const currency = input.currency ?? existing.currency;
+  const requireSignature = input.require_signature ?? existing.require_signature;
+  const requireSignatureBeforePayment = input.require_signature_before_payment ?? existing.require_signature_before_payment;
+
+  let lineItems = existing.line_items;
+  let subtotal = existing.subtotal;
+  let taxTotal = existing.tax_total;
+  let rawTotal = existing.total;
+
+  if (input.line_items !== undefined) {
+    const calc = calculateLineItems(input.line_items);
+    lineItems = calc.lineItems;
+    subtotal = calc.subtotal;
+    taxTotal = calc.taxTotal;
+    rawTotal = calc.total;
+  }
+
+  const discountType = input.discount_type !== undefined ? input.discount_type : existing.discount_type;
+  const discountValue = input.discount_value !== undefined ? Number(input.discount_value) || 0 : Number(existing.discount_value) || 0;
+  let discountTotal = 0;
+  if (discountType === 'percentage' && discountValue > 0) {
+    discountTotal = Math.round((subtotal * discountValue / 100) * 100) / 100;
+  } else if (discountType === 'flat' && discountValue > 0) {
+    discountTotal = Math.round(discountValue * 100) / 100;
+  }
+  if (discountTotal > rawTotal) discountTotal = rawTotal;
+  const total = Math.round((rawTotal - discountTotal) * 100) / 100;
+
+  // Status and amount_paid overrides
+  const newStatus: InvoiceStatus = input.status ?? existing.status;
+  const amountPaid = input.amount_paid !== undefined ? Math.max(0, Number(input.amount_paid)) : existing.amount_paid;
+
+  await sql`
+    UPDATE invoices SET
+      customer_name = ${customerName},
+      customer_email = ${customerEmail},
+      customer_phone = ${customerPhone},
+      customer_address = ${customerAddress},
+      customer_city = ${customerCity},
+      customer_state = ${customerState},
+      customer_zip = ${customerZip},
+      customer_country = ${customerCountry},
+      issue_date = ${issueDate},
+      due_date = ${dueDate},
+      memo = ${memo},
+      terms = ${terms},
+      po_number = ${poNumber},
+      currency = ${currency},
+      require_signature = ${requireSignature},
+      require_signature_before_payment = ${requireSignatureBeforePayment},
+      line_items = ${JSON.stringify(lineItems)},
+      subtotal = ${subtotal},
+      tax_total = ${taxTotal},
+      discount_type = ${discountType},
+      discount_value = ${discountValue},
+      discount_total = ${discountTotal},
+      total = ${total},
+      amount_paid = ${amountPaid},
+      status = ${newStatus},
+      paid_at = CASE WHEN ${newStatus} = 'paid' AND paid_at IS NULL THEN NOW() ELSE paid_at END,
+      updated_at = NOW(),
+      version = version + 1
+    WHERE id = ${invoiceId} AND tenant_id = ${tenantId}
+  `;
+
+  await createInvoiceAuditLog(tenantId, {
+    invoice_id: invoiceId,
+    action: 'invoice_updated',
+    actor_id: actorId ?? null,
+    actor_type: actorId ? 'user' : 'system',
+    metadata: { admin_edit: true, changes: Object.keys(input) },
+  });
+
+  const updated = await getInvoice(tenantId, invoiceId);
+  if (!updated) throw new Error('Failed to retrieve updated invoice');
   return updated;
 }
 
@@ -758,7 +874,7 @@ function rowToInvoice(row: Record<string, unknown>): Invoice {
     voided_at: formatDate(row.voided_at),
     void_reason: (row.void_reason as string) ?? null,
     version: Number(row.version) || 1,
-  } as any;
+  };
 }
 
 // ============================================================================

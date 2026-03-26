@@ -61,7 +61,7 @@ export const POST = withTenant(
           'branding'
         );
         logoObjectPath = result.objectPath;
-        console.log("[Logo Upload] Stored in Object Storage:", logoObjectPath);
+        if (process.env.NODE_ENV !== 'production') console.log("[Logo Upload] Stored in Object Storage:", logoObjectPath);
       } catch (storageErr) {
         console.warn("[Logo Upload] Object Storage failed, falling back to DB:", storageErr);
         base64 = buffer.toString('base64');

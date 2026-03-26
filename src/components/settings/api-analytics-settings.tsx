@@ -329,7 +329,7 @@ export function ApiAnalyticsSettings() {
           <CardContent>
             <div className="h-[300px]">
               {dailyData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={dailyData}>
                     <defs>
                       <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
@@ -381,7 +381,7 @@ export function ApiAnalyticsSettings() {
           <CardContent>
             <div className="h-[300px]">
               {endpointData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={endpointData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))" }} />
@@ -428,7 +428,7 @@ export function ApiAnalyticsSettings() {
           <CardContent>
             <div className="h-[200px]">
               {methodData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
                       data={methodData}
@@ -481,7 +481,7 @@ export function ApiAnalyticsSettings() {
           <CardContent>
             <div className="h-[200px]">
               {(statusData[0].value > 0 || statusData[1].value > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
                       data={statusData}
@@ -536,7 +536,7 @@ export function ApiAnalyticsSettings() {
           <CardContent>
             <div className="h-[200px]">
               {responseTimeData.some((d) => d.value > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
                       data={responseTimeData}
@@ -589,7 +589,7 @@ export function ApiAnalyticsSettings() {
         </CardHeader>
         <CardContent>
           <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={200}>
               <BarChart data={hourlyData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="hour" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />

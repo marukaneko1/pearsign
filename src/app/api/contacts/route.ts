@@ -22,7 +22,7 @@ async function ensureTable() {
 
     if (columnCheck.length > 0) {
       // Table exists with old org_id column - migrate to tenant_id
-      console.log('[Contacts API] Migrating contacts table from org_id to tenant_id');
+      if (process.env.NODE_ENV !== 'production') console.log('[Contacts API] Migrating contacts table from org_id to tenant_id');
 
       // Rename org_id column to tenant_id
       await sql`ALTER TABLE contacts RENAME COLUMN org_id TO tenant_id`;

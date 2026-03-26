@@ -20,7 +20,7 @@ export async function exec(query: string): Promise<void> {
       query.includes('CREATE INDEX IF NOT EXISTS') ||
       errorMessage.includes('already exists')
     ) {
-      console.log('[DB Helper] Table/index already exists or created');
+      if (process.env.NODE_ENV !== 'production') console.log('[DB Helper] Table/index already exists or created');
       return;
     }
     throw error;

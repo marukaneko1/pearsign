@@ -148,122 +148,102 @@ export function AIDocumentWizard({ onClose }: { onClose?: () => void }) {
     doc.type.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getApiKey = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('openai_api_key');
-    }
-    return null;
-  };
-
   const generateAIResponse = async (userMessage: string, conversationHistory: Message[]) => {
-    const apiKey = getApiKey();
-
-    if (!apiKey) {
-      return "I need an OpenAI API key to help you. Please add your API key in Settings → AI Document Generation.";
-    }
-
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const messages = [
+        ...conversationHistory.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        { role: 'user', content: userMessage },
+      ];
+
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a helpful legal document assistant for PearSign. Your job is to gather information from users to create professional legal documents like NDAs, contracts, and agreements.
-
-Ask questions one at a time in a friendly, conversational manner. Gather essential information like:
-- Party names (full legal names)
-- Effective dates
-- Jurisdiction/state
-- Key terms and conditions
-- Duration/expiration
-- Specific clauses they want
-
-Keep responses concise (2-3 sentences max). Once you have enough information, say "Great! I have all the information I need. Let me generate your document now." and summarize what you'll create.`
-            },
-            ...conversationHistory.map(msg => ({
-              role: msg.role,
-              content: msg.content,
-            })),
-            {
-              role: 'user',
-              content: userMessage,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 300,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
       });
 
       if (!response.ok) {
-        throw new Error('API request failed');
+        if (response.status === 400) {
+          return "AI is not configured yet. Please ask an admin to set up an AI integration in Settings → Integrations.";
+        }
+        throw new Error('Request failed');
       }
 
-      const data = await response.json();
-      return data.choices[0].message.content;
+      // Consume SSE stream and collect full response
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let fullContent = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) fullContent += data.content;
+              if (data.done) break;
+            } catch {}
+          }
+        }
+      }
+      return fullContent || "I'm having trouble generating a response right now. Please try again.";
     } catch (error) {
-      console.error('Error calling OpenAI:', error);
-      return "I'm having trouble connecting right now. Please check your API key and try again.";
+      console.error('Error calling AI chat:', error);
+      return "I'm having trouble connecting right now. Please try again.";
     }
   };
 
   const generateDocument = async (conversationHistory: Message[]) => {
-    const apiKey = getApiKey();
-
-    if (!apiKey) {
-      return "API key required";
-    }
-
     try {
       const conversationContext = conversationHistory
         .filter(msg => msg.role !== 'system')
         .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
         .join('\n\n');
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+      const messages = [
+        {
+          role: 'user',
+          content: `Based on this conversation, please generate the complete legal document:\n\n${conversationContext}\n\nPlease create the full document now with proper formatting, all party names, dates, terms discussed, and signature blocks at the end.`,
         },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a legal document generator. Based on the conversation history, create a complete, professional legal document.
+      ];
 
-Format the document properly with:
-- Title centered and bold
-- Clear section headers
-- Proper legal language
-- All party names, dates, and terms discussed
-- Standard legal clauses appropriate for the document type
-- Signature blocks at the end
-
-Make it comprehensive but readable. Use markdown formatting.`
-            },
-            {
-              role: 'user',
-              content: `Based on this conversation, please generate the complete legal document:\n\n${conversationContext}\n\nPlease create the full document now.`
-            },
-          ],
-          temperature: 0.5,
-          max_tokens: 2000,
-        }),
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
       });
 
       if (!response.ok) {
-        throw new Error('API request failed');
+        throw new Error('Request failed');
       }
 
-      const data = await response.json();
-      return data.choices[0].message.content;
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let fullContent = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) fullContent += data.content;
+              if (data.done) break;
+            } catch {}
+          }
+        }
+      }
+      return fullContent || null;
     } catch (error) {
       console.error('Error generating document:', error);
       return null;
@@ -387,11 +367,21 @@ Make it comprehensive but readable. Use markdown formatting.`
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] max-h-[800px]">
+    <div className="flex h-[calc(100vh-4rem)] sm:h-[calc(100vh-8rem)] max-h-[800px] relative overflow-hidden">
+      {/* Mobile overlay backdrop */}
+      {showSidebar && (
+        <div
+          className="fixed inset-0 z-10 bg-black/30 lg:hidden"
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
       {/* Sidebar - Document History */}
       <div className={cn(
-        "border-r bg-accent/30 transition-all duration-300",
-        showSidebar ? "w-80" : "w-0 overflow-hidden"
+        "border-r bg-card transition-all duration-300",
+        "lg:relative lg:z-auto lg:bg-accent/30",
+        showSidebar
+          ? "absolute inset-y-0 left-0 z-20 w-72 lg:w-80 shadow-xl lg:shadow-none"
+          : "w-0 overflow-hidden"
       )}>
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}

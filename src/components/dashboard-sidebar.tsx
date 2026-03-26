@@ -21,6 +21,7 @@ import {
   Webhook,
   Building2,
   Receipt,
+  PanelLeftClose,
 } from "lucide-react";
 import { TenantSwitcher } from "@/components/tenant-switcher";
 import { useTenant } from "@/contexts/tenant-context";
@@ -28,6 +29,7 @@ import { useTenant } from "@/contexts/tenant-context";
 interface DashboardSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  onToggle?: () => void;
   currentView?: string;
   onNavigate?: (view: string) => void;
   onNewDocument?: () => void;
@@ -88,7 +90,7 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-export function DashboardSidebar({ isOpen, onClose, currentView = "dashboard", onNavigate, onNewDocument }: DashboardSidebarProps) {
+export function DashboardSidebar({ isOpen, onClose, onToggle, currentView = "dashboard", onNavigate, onNewDocument }: DashboardSidebarProps) {
   const { isDemo, hasPermission } = useTenant();
   const [storageData, setStorageData] = useState<StorageData | null>(null);
   const [storageLoading, setStorageLoading] = useState(true);
@@ -153,7 +155,6 @@ export function DashboardSidebar({ isOpen, onClose, currentView = "dashboard", o
         )}
         onClick={() => {
           onNavigate?.(item.view);
-          onClose();
         }}
       >
         <Icon className={cn("h-[18px] w-[18px]", isActive && "text-primary")} />
@@ -164,50 +165,64 @@ export function DashboardSidebar({ isOpen, onClose, currentView = "dashboard", o
 
   return (
     <>
-      {/* Overlay for mobile */}
+      {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 top-16 z-40 bg-black/20 lg:hidden"
+          className="fixed inset-0 top-16 z-40 bg-black/30 lg:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — outer shell controls visible width (desktop) or translate (mobile) */}
       <aside
         data-tour="sidebar"
         className={cn(
-          "fixed left-0 top-16 z-50 h-[calc(100%-4rem)] w-[260px] bg-card/80 backdrop-blur-xl border-r border-border/60 transition-transform duration-200 lg:translate-x-0 lg:static lg:h-[calc(100vh-4rem)] flex flex-col",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          // Shared base
+          "fixed left-0 top-16 z-50 h-[calc(100%-4rem)] bg-card/80 backdrop-blur-xl border-r border-border/60 overflow-hidden",
+          // Smooth animation for both width and transform
+          "transition-[width,transform] duration-300 ease-in-out",
+          // Mobile: always 260px wide, slides in/out via translate
+          "w-[260px]",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+          // Desktop: static in document flow, override translate, animate width
+          "lg:static lg:h-[calc(100vh-4rem)] lg:translate-x-0",
+          isOpen ? "lg:w-[260px]" : "lg:w-0",
         )}
       >
-        {/* Mobile Close Button */}
-        <div className="flex items-center justify-end p-2 lg:hidden">
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
+        {/* Inner wrapper — always 260px so content never wraps during animation */}
+        <div className="w-[260px] h-full flex flex-col">
 
-        {/* Tenant Switcher */}
-        <div className="px-3 py-2 border-b border-border/60">
-          <TenantSwitcher />
+        {/* Tenant Switcher + toggle button */}
+        <div className="flex items-center gap-1 px-3 py-2 border-b border-border/60">
+          <div className="flex-1 min-w-0">
+            <TenantSwitcher />
+          </div>
+          <button
+            onClick={onToggle ?? onClose}
+            title="Collapse sidebar"
+            className="shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
         </div>
 
         {/* New Document Button */}
         <div className="px-3 pt-4 pb-2" data-tour="new-document">
           <button
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors shadow-sm"
+            aria-label="Create new document"
             onClick={() => {
               onNewDocument?.();
-              onClose();
             }}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             New document
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
+        <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
           {mainNavItems.map((item) => (
             <NavItem key={item.view} item={item} />
           ))}
@@ -230,7 +245,6 @@ export function DashboardSidebar({ isOpen, onClose, currentView = "dashboard", o
           <button
             onClick={() => {
               onNavigate?.("settings");
-              onClose();
             }}
             className="w-full p-3 rounded-md hover:bg-accent transition-colors text-left"
           >
@@ -257,6 +271,8 @@ export function DashboardSidebar({ isOpen, onClose, currentView = "dashboard", o
             )}
           </button>
         </div>
+
+        </div>{/* end inner 260px wrapper */}
       </aside>
     </>
   );

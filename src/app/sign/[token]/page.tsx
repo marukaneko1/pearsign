@@ -126,7 +126,7 @@ export default function SigningPage() {
 
       // Mark as viewed (only after 2FA if required)
       if (!data.twoFactorAuth?.required || data.twoFactorAuth?.verified) {
-        console.log("[Signing Page] Marking document as viewed...");
+        if (process.env.NODE_ENV !== 'production') console.log("[Signing Page] Marking document as viewed...");
         // Call both endpoints to ensure viewed is tracked
         try {
           // Primary: POST to /viewed endpoint (triggers email)
@@ -134,7 +134,7 @@ export default function SigningPage() {
             method: 'POST',
           });
           const viewedData = await viewedRes.json();
-          console.log("[Signing Page] Viewed endpoint response:", viewedData);
+          if (process.env.NODE_ENV !== 'production') console.log("[Signing Page] Viewed endpoint response:", viewedData);
         } catch (viewedErr) {
           console.error("[Signing Page] Viewed endpoint error:", viewedErr);
         }

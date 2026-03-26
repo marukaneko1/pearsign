@@ -23,6 +23,8 @@ export {
   getInvoiceByNumber,
   listInvoices,
   updateInvoice,
+  adminUpdateInvoice,
+  type AdminUpdateInvoiceInput,
   sendInvoice,
   markInvoiceViewed,
   voidInvoice,

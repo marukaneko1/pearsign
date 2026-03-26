@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TemplatesService } from '@/lib/templates';
 import { withTenant, TenantApiContext } from '@/lib/tenant-middleware';
+import { logTemplateEvent } from '@/lib/audit-log';
 
 /**
  * GET /api/templates/[id]
@@ -59,7 +60,7 @@ export const GET = withTenant<{ id: string }>(
 export const PATCH = withTenant<{ id: string }>(
   async (
     request: NextRequest,
-    { tenantId }: TenantApiContext,
+    { tenantId, userId, userName, userEmail }: TenantApiContext,
     params?: { id: string }
   ) => {
     try {
@@ -98,33 +99,27 @@ export const PATCH = withTenant<{ id: string }>(
       if (action === 'activate') {
         const template = await TemplatesService.activateTemplate(tenantId, id);
         if (!template) {
-          return NextResponse.json(
-            { success: false, error: 'Template not found' },
-            { status: 404 }
-          );
+          return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
         }
+        logTemplateEvent('template.activated', { orgId: tenantId, templateId: id, templateName: existingTemplate.name, actorId: userId, actorName: userName, actorEmail: userEmail });
         return NextResponse.json({ success: true, data: template });
       }
 
       if (action === 'deactivate') {
         const template = await TemplatesService.deactivateTemplate(tenantId, id);
         if (!template) {
-          return NextResponse.json(
-            { success: false, error: 'Template not found' },
-            { status: 404 }
-          );
+          return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
         }
+        logTemplateEvent('template.deactivated', { orgId: tenantId, templateId: id, templateName: existingTemplate.name, actorId: userId, actorName: userName, actorEmail: userEmail });
         return NextResponse.json({ success: true, data: template });
       }
 
       if (action === 'duplicate') {
         const template = await TemplatesService.duplicateTemplate(tenantId, id, body.newName);
         if (!template) {
-          return NextResponse.json(
-            { success: false, error: 'Template not found' },
-            { status: 404 }
-          );
+          return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
         }
+        logTemplateEvent('template.duplicated', { orgId: tenantId, templateId: template.id, templateName: template.name, actorId: userId, actorName: userName, actorEmail: userEmail, details: { sourceTemplateId: id } });
         return NextResponse.json({ success: true, data: template });
       }
 
@@ -141,11 +136,10 @@ export const PATCH = withTenant<{ id: string }>(
       });
 
       if (!template) {
-        return NextResponse.json(
-          { success: false, error: 'Template not found' },
-          { status: 404 }
-        );
+        return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
       }
+
+      logTemplateEvent('template.updated', { orgId: tenantId, templateId: id, templateName: template.name, actorId: userId, actorName: userName, actorEmail: userEmail });
 
       return NextResponse.json({
         success: true,
@@ -171,7 +165,7 @@ export const PATCH = withTenant<{ id: string }>(
 export const DELETE = withTenant<{ id: string }>(
   async (
     request: NextRequest,
-    { tenantId }: TenantApiContext,
+    { tenantId, userId, userName, userEmail }: TenantApiContext,
     params?: { id: string }
   ) => {
     try {
@@ -201,6 +195,15 @@ export const DELETE = withTenant<{ id: string }>(
           { status: 404 }
         );
       }
+
+      logTemplateEvent('template.deleted', {
+        orgId: tenantId,
+        templateId: id,
+        templateName: existingTemplate.name,
+        actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
+      });
 
       return NextResponse.json({
         success: true,

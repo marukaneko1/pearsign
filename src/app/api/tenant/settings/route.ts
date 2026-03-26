@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getTenantSessionContext, initializeSessionTable } from '@/lib/tenant-session';
+import { logSettingsEvent } from '@/lib/audit-log';
 
 export async function GET() {
   try {
@@ -121,7 +122,14 @@ export async function PUT(request: NextRequest) {
         await sql`
           UPDATE tenant_sessions SET tenant_name = ${name.trim()}
           WHERE tenant_id = ${tenantId} AND expires_at > NOW()
-        `.catch(() => {});
+        `.catch(err => console.warn('[TenantSettings] Failed to sync name to sessions:', err));
+
+        logSettingsEvent({
+          orgId: tenantId,
+          actorId: context.session.userId,
+          actorEmail: context.session.userEmail,
+          details: { action: 'updateName', newName: name.trim() },
+        });
 
         return NextResponse.json({ success: true, message: 'Organization name updated' });
       }
@@ -144,7 +152,14 @@ export async function PUT(request: NextRequest) {
         await sql`
           UPDATE tenant_sessions SET tenant_plan = ${newPlan}
           WHERE tenant_id = ${tenantId} AND expires_at > NOW()
-        `.catch(() => {});
+        `.catch(err => console.warn('[TenantSettings] Failed to sync plan to sessions:', err));
+
+        logSettingsEvent({
+          orgId: tenantId,
+          actorId: context.session.userId,
+          actorEmail: context.session.userEmail,
+          details: { action: 'changePlan', newPlan },
+        });
 
         return NextResponse.json({ success: true, message: `Plan changed to ${newPlan}` });
       }

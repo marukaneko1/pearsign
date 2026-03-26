@@ -34,13 +34,17 @@ import {
   ArrowRight,
   ArrowDown,
   MousePointer2,
+  Phone,
+  MapPin,
+  Hash,
+  GripVertical,
 } from "lucide-react";
 import { MeteorBackground, GlowOrb } from "./meteor-background";
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 }
 
 interface Envelope {
@@ -100,6 +104,9 @@ const FIELD_ICONS: Record<string, React.ElementType> = {
   text: Edit3,
   company: Building,
   title: Briefcase,
+  phone: Phone,
+  address: MapPin,
+  number: Hash,
   upload: Paperclip,
   radio: CheckCircle2,
   dropdown: ChevronDown,
@@ -113,7 +120,7 @@ const SIGNATURE_FIELDS = ['signature', 'initials'];
 const DATE_FIELDS = ['date'];
 
 // Text-based fields that allow typing
-const TEXT_FIELDS = ['name', 'email', 'text', 'company', 'title'];
+const TEXT_FIELDS = ['name', 'email', 'text', 'company', 'title', 'phone', 'address', 'number'];
 
 // Fields that allow file uploads
 const UPLOAD_FIELDS = ['upload'];
@@ -223,6 +230,24 @@ export function SigningPageContent({
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [justCompletedField, setJustCompletedField] = useState<string | null>(null);
 
+  // Field position + size overrides (drag-to-reposition & resize by signer)
+  const [fieldPositionOverrides, setFieldPositionOverrides] = useState<Record<string, { x: number; y: number; w?: number; h?: number }>>({});
+  const [draggingFieldId, setDraggingFieldId] = useState<string | null>(null);
+  const fieldDragRef = useRef<{
+    fieldId: string;
+    mode: 'move' | 'resize';
+    startMouseX: number;
+    startMouseY: number;
+    startFieldX: number;
+    startFieldY: number;
+    startFieldW: number;
+    startFieldH: number;
+  } | null>(null);
+  // Long-press-to-drag: timer fires after 280ms hold anywhere on the box
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether the last press became a drag (suppresses the click)
+  const wasDragRef = useRef(false);
+
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({});
@@ -247,6 +272,51 @@ export function SigningPageContent({
       setFilledFields(prev => ({ ...prev, ...prefilledData }));
     }
   }, [assignedFields]);
+
+  // Global mouse events for field drag-to-reposition and resize
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!fieldDragRef.current) return;
+      const { fieldId, mode, startMouseX, startMouseY, startFieldX, startFieldY, startFieldW, startFieldH } = fieldDragRef.current;
+      const dxField = (e.clientX - startMouseX) / zoom;
+      const dyField = (e.clientY - startMouseY) / zoom;
+      if (mode === 'move') {
+        setFieldPositionOverrides(prev => ({
+          ...prev,
+          [fieldId]: { ...prev[fieldId], x: Math.max(0, startFieldX + dxField), y: Math.max(0, startFieldY + dyField) },
+        }));
+      } else {
+        // resize: grow/shrink width and height
+        setFieldPositionOverrides(prev => ({
+          ...prev,
+          [fieldId]: {
+            ...prev[fieldId],
+            x: prev[fieldId]?.x ?? startFieldX,
+            y: prev[fieldId]?.y ?? startFieldY,
+            w: Math.max(30 / zoom, startFieldW + dxField),
+            h: Math.max(12 / zoom, startFieldH + dyField),
+          },
+        }));
+      }
+    };
+    const handleMouseUp = () => {
+      // Cancel any pending long-press
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      fieldDragRef.current = null;
+      setDraggingFieldId(null);
+      // Let onClick fire first, then clear the drag flag
+      setTimeout(() => { wasDragRef.current = false; }, 0);
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [zoom]);
 
   // Computed values
   const currentField = assignedFields[currentFieldIndex];
@@ -279,7 +349,7 @@ export function SigningPageContent({
 
         for (const url of urlsToTry) {
           try {
-            console.log('[SigningPage] Trying to load PDF from:', url);
+            if (process.env.NODE_ENV !== 'production') console.log('[SigningPage] Trying to load PDF from:', url);
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -290,7 +360,7 @@ export function SigningPageContent({
             if (arrayBuffer.byteLength < 100) throw new Error('PDF too small');
 
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            console.log('[SigningPage] PDF loaded successfully, pages:', pdf.numPages);
+            if (process.env.NODE_ENV !== 'production') console.log('[SigningPage] PDF loaded successfully, pages:', pdf.numPages);
 
             setPdfDocument(pdf);
             setTotalPages(pdf.numPages);
@@ -322,7 +392,7 @@ export function SigningPageContent({
               // Ensure minimum zoom of 0.8 for readability
               const finalZoom = Math.max(0.8, fitZoom);
 
-              console.log('[SigningPage] Auto-zoom calculated:', {
+              if (process.env.NODE_ENV !== 'production') console.log('[SigningPage] Auto-zoom calculated:', {
                 containerWidth,
                 availableHeight,
                 pageWidth: viewport.width,
@@ -360,7 +430,7 @@ export function SigningPageContent({
 
     // Delay to ensure canvases are mounted in DOM
     const timeoutId = setTimeout(async () => {
-      console.log('[SigningPage] Rendering all pages, stage:', stage, 'totalPages:', totalPages);
+      if (process.env.NODE_ENV !== 'production') console.log('[SigningPage] Rendering all pages, stage:', stage, 'totalPages:', totalPages);
       const heights: number[] = [];
       const pixelRatio = window.devicePixelRatio || 1;
       const renderScale = Math.max(2, zoom) * pixelRatio;
@@ -404,7 +474,7 @@ export function SigningPageContent({
             viewport: scaledViewport,
           }).promise;
 
-          console.log('[SigningPage] Page', pageNum, 'rendered successfully');
+          if (process.env.NODE_ENV !== 'production') console.log('[SigningPage] Page', pageNum, 'rendered successfully');
         } catch (err) {
           console.error('[SigningPage] Error rendering page', pageNum, ':', err);
         }
@@ -605,7 +675,8 @@ export function SigningPageContent({
 
   // Handle field clicks - enhanced with completion feedback
   const handleFieldClick = (field: Field) => {
-    if (filledFields[field.id]) return; // Already filled
+    // Allow re-editing filled text/payment fields; block others if already filled
+    if (filledFields[field.id] && !TEXT_FIELDS.includes(field.type) && !PAYMENT_FIELDS.includes(field.type)) return;
 
     const fieldIndex = assignedFields.findIndex(f => f.id === field.id);
     setCurrentFieldIndex(fieldIndex);
@@ -631,9 +702,9 @@ export function SigningPageContent({
       setJustCompletedField(field.id);
       advanceToNextField();
     } else if (TEXT_FIELDS.includes(field.type)) {
-      // Open text input
+      // Inline edit directly in the field box (no modal)
       setEditingTextFieldId(field.id);
-      setTextInputValue(field.preFilledValue || '');
+      setTextInputValue(filledFields[field.id] || field.preFilledValue || '');
     } else if (UPLOAD_FIELDS.includes(field.type)) {
       // Open upload modal
       setUploadingFieldId(field.id);
@@ -654,7 +725,7 @@ export function SigningPageContent({
       setShowDropdownFieldId(field.id);
     } else if (PAYMENT_FIELDS.includes(field.type)) {
       setEditingPaymentFieldId(field.id);
-      setPaymentInputValue(field.preFilledValue || '');
+      setPaymentInputValue(filledFields[field.id] || field.preFilledValue || '');
     }
   };
 
@@ -806,14 +877,18 @@ export function SigningPageContent({
     }
   }, [stage, token]);
 
-  // Handle text field save - enhanced with completion feedback
+  // Handle text field save (inline - no modal)
   const handleTextFieldSave = () => {
-    if (editingTextFieldId && textInputValue.trim()) {
-      setFilledFields(prev => ({ ...prev, [editingTextFieldId]: textInputValue.trim() }));
-      setJustCompletedField(editingTextFieldId);
+    if (editingTextFieldId) {
+      const val = textInputValue.trim();
+      if (val) {
+        const wasAlreadyFilled = !!filledFields[editingTextFieldId];
+        setFilledFields(prev => ({ ...prev, [editingTextFieldId]: val }));
+        setJustCompletedField(editingTextFieldId);
+        if (!wasAlreadyFilled) advanceToNextField();
+      }
       setEditingTextFieldId(null);
       setTextInputValue('');
-      advanceToNextField();
     }
   };
 
@@ -830,7 +905,15 @@ export function SigningPageContent({
           signerName: recipient.name,
           signerEmail: recipient.email,
           fieldValues: filledFields,
-          signatureData: Object.values(filledFields).find(v => v.startsWith('data:image')) || '',
+          signatureData: (() => {
+            // Find the signature field value for this signer specifically
+            const signatureField = assignedFields.find(
+              f => f.type === 'signature' && filledFields[f.id]?.startsWith('data:image')
+            );
+            return signatureField ? filledFields[signatureField.id] : (
+              Object.values(filledFields).find(v => v.startsWith('data:image')) || ''
+            );
+          })(),
         }),
       });
 
@@ -965,6 +1048,28 @@ export function SigningPageContent({
   // Get field icon
   const getFieldIcon = (type: string) => FIELD_ICONS[type] || Edit3;
 
+  // Get clean accent color per field type (used for border/indicator strip)
+  const getFieldAccentColor = (type: string): string => {
+    if (SIGNATURE_FIELDS.includes(type)) return '#f59e0b';
+    if (DATE_FIELDS.includes(type)) return '#0ea5e9';
+    if (UPLOAD_FIELDS.includes(type)) return '#f97316';
+    if (RADIO_FIELDS.includes(type)) return '#d946ef';
+    if (DROPDOWN_FIELDS.includes(type)) return '#06b6d4';
+    if (PAYMENT_FIELDS.includes(type)) return '#22c55e';
+    return '#8b5cf6'; // text fields
+  };
+
+  // Get placeholder label shown in unfilled field
+  const getFieldPlaceholder = (field: Field): string => {
+    if (SIGNATURE_FIELDS.includes(field.type)) return field.type === 'signature' ? 'Click to sign' : 'Click to initial';
+    if (DATE_FIELDS.includes(field.type)) return 'Click to add date';
+    if (UPLOAD_FIELDS.includes(field.type)) return 'Click to upload';
+    if (RADIO_FIELDS.includes(field.type)) return 'Select';
+    if (DROPDOWN_FIELDS.includes(field.type)) return 'Choose option…';
+    if (PAYMENT_FIELDS.includes(field.type)) return 'Enter amount…';
+    return field.placeholder || `Enter ${field.label || field.type}…`;
+  };
+
   // Get field display label for tags
   const getFieldTagLabel = (type: string): string => {
     const labels: Record<string, string> = {
@@ -976,6 +1081,9 @@ export function SigningPageContent({
       text: 'Text',
       company: 'Company',
       title: 'Title',
+      phone: 'Phone',
+      address: 'Address',
+      number: 'Number',
       upload: 'Upload',
       radio: 'Select',
       dropdown: 'Choose',
@@ -1608,7 +1716,7 @@ export function SigningPageContent({
                         mountedCanvasCount.current++;
                         // Trigger rendering when all canvases are mounted
                         if (mountedCanvasCount.current >= totalPages && !canvasesReady) {
-                          console.log('[SigningPage] All canvases mounted:', mountedCanvasCount.current);
+                          if (process.env.NODE_ENV !== 'production') console.log('[SigningPage] All canvases mounted:', mountedCanvasCount.current);
                           // Use requestAnimationFrame to ensure DOM is ready
                           requestAnimationFrame(() => {
                             setCanvasesReady(true);
@@ -1624,136 +1732,260 @@ export function SigningPageContent({
                     .filter(f => f.page === pageNum)
                     .map((field) => {
                       const isFilled = !!filledFields[field.id];
+                      const isInlineEditing = editingTextFieldId === field.id;
+                      const isInlinePayment = editingPaymentFieldId === field.id;
                       const isCurrentField = currentField?.id === field.id && !isFilled;
-                      const Icon = getFieldIcon(field.type);
-
-                      // Enhanced: Animate field completion
                       const showCompleteAnim = justCompletedField === field.id;
-
-                      // Enhanced: Animate auto-advance
                       const showAutoAdvanceAnim = isAutoAdvancing && isCurrentField;
+                      const accent = getFieldAccentColor(field.type);
+                      const ovr = fieldPositionOverrides[field.id];
+                      const effX = (ovr?.x ?? field.x) * zoom;
+                      const effY = (ovr?.y ?? field.y) * zoom;
+                      const boxW = (ovr?.w ?? field.width) * zoom;
+                      const boxH = (ovr?.h ?? field.height) * zoom;
+                      const fontSize = Math.max(9, Math.min(13, boxH * 0.62));
+
+                      const isBeingDragged = draggingFieldId === field.id;
 
                       return (
                         <div
                           key={field.id}
                           ref={(el) => { fieldRefs.current[field.id] = el; }}
                           data-testid={`signing-field-${field.type}-${field.id}`}
-                          className={`absolute transition-all duration-200 overflow-hidden box-border ${isFilled ? '' : 'cursor-pointer'} ${showCompleteAnim ? 'z-50 animate-field-complete' : ''} ${showAutoAdvanceAnim ? 'animate-auto-advance' : ''}`}
+                          className={`absolute group box-border ${showCompleteAnim ? 'z-50' : 'z-10'} ${showAutoAdvanceAnim ? 'animate-auto-advance' : ''} ${isBeingDragged ? 'z-50' : ''}`}
                           style={{
-                            left: field.x * zoom,
-                            top: field.y * zoom,
-                            width: field.width * zoom,
-                            height: field.height * zoom,
+                            left: effX,
+                            top: effY,
+                            width: boxW,
+                            height: boxH,
+                            transition: isBeingDragged ? 'none' : 'left 0.08s, top 0.08s',
+                            cursor: isBeingDragged ? 'grabbing' : undefined,
+                            opacity: isBeingDragged ? 0.85 : 1,
+                            boxShadow: isBeingDragged ? `0 4px 20px ${accent}40` : undefined,
                           }}
-                          onClick={() => handleFieldClick(field)}
                         >
-                          {isFilled ? (
-                            <div className="w-full h-full relative rounded-md bg-white/60 backdrop-blur-[1px]">
-                              {SIGNATURE_FIELDS.includes(field.type) && (
-                                <img src={filledFields[field.id]} alt="Signature" className="w-full h-full object-contain" />
-                              )}
-                              {(DATE_FIELDS.includes(field.type) || TEXT_FIELDS.includes(field.type)) && (() => {
-                                const boxW = field.width * zoom;
-                                const boxH = field.height * zoom;
-                                const text = filledFields[field.id] || '';
-                                const maxByHeight = Math.max(8, boxH * 0.65);
-                                const charW = text.length * 0.6;
-                                const maxByWidth = charW > 0 ? Math.max(6, (boxW - 8) / charW) : maxByHeight;
-                                const autoSize = Math.min(maxByHeight, maxByWidth, 16 * zoom);
-                                return (
-                                  <div
-                                    className="w-full h-full flex items-center px-1 text-slate-800 dark:text-slate-100 font-medium overflow-hidden whitespace-nowrap"
-                                    style={{ fontSize: `${Math.max(6, autoSize)}px` }}
-                                  >
-                                    <span className="truncate">{text}</span>
-                                  </div>
-                                );
-                              })()}
-                              {UPLOAD_FIELDS.includes(field.type) && (
-                                <div
-                                  className="w-full h-full flex items-center gap-1.5 px-2 bg-emerald-50/90 border border-emerald-300 rounded-md text-emerald-700 font-medium overflow-hidden cursor-pointer hover:bg-emerald-100 dark:bg-emerald-900/40/90 transition-colors"
-                                  style={{ fontSize: `${Math.max(10, 11 * zoom)}px` }}
-                                  onClick={() => handleFieldClick(field)}
-                                >
-                                  <Paperclip className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{filledFields[field.id]}</span>
-                                </div>
-                              )}
-                              {RADIO_FIELDS.includes(field.type) && (
+                          {/* ── Filled state ─────────────────────────────── */}
+                          {isFilled && !isInlineEditing && !isInlinePayment ? (
+                            <div
+                              className="w-full h-full relative flex items-center group/filled overflow-hidden select-none"
+                              style={{
+                                borderBottom: `1.5px solid ${accent}`,
+                                cursor: isBeingDragged ? 'grabbing' : 'pointer',
+                              }}
+                              onMouseDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.stopPropagation();
+                                const ovr2 = fieldPositionOverrides[field.id];
+                                const startInfo = {
+                                  fieldId: field.id,
+                                  mode: 'move' as const,
+                                  startMouseX: e.clientX,
+                                  startMouseY: e.clientY,
+                                  startFieldX: ovr2?.x ?? field.x,
+                                  startFieldY: ovr2?.y ?? field.y,
+                                  startFieldW: ovr2?.w ?? field.width,
+                                  startFieldH: ovr2?.h ?? field.height,
+                                };
+                                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                longPressTimerRef.current = setTimeout(() => {
+                                  longPressTimerRef.current = null;
+                                  wasDragRef.current = true;
+                                  fieldDragRef.current = startInfo;
+                                  setDraggingFieldId(field.id);
+                                }, 280);
+                              }}
+                              onClick={() => {
+                                if (wasDragRef.current) return;
+                                handleFieldClick(field);
+                              }}
+                            >
+                              {SIGNATURE_FIELDS.includes(field.type) ? (
+                                <img src={filledFields[field.id]} alt="Signature" className="max-w-full max-h-full object-contain" />
+                              ) : RADIO_FIELDS.includes(field.type) ? (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <div className="w-4 h-4 rounded-full border-2 border-fuchsia-500 flex items-center justify-center bg-white">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-fuchsia-500" />
+                                  <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ border: `2px solid ${accent}` }}>
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: accent }} />
                                   </div>
                                 </div>
+                              ) : (
+                                <span
+                                  className="px-1 truncate font-medium text-slate-800"
+                                  style={{ fontSize: `${fontSize}px` }}
+                                >
+                                  {PAYMENT_FIELDS.includes(field.type)
+                                    ? `${CURRENCY_SYMBOLS[field.currency || 'USD']}${filledFields[field.id]}`
+                                    : filledFields[field.id]}
+                                </span>
                               )}
-                              {DROPDOWN_FIELDS.includes(field.type) && (() => {
-                                const boxW = field.width * zoom;
-                                const boxH = field.height * zoom;
-                                const text = filledFields[field.id] || '';
-                                const maxByHeight = Math.max(8, boxH * 0.65);
-                                const charW = text.length * 0.6;
-                                const maxByWidth = charW > 0 ? Math.max(6, (boxW - 8) / charW) : maxByHeight;
-                                const autoSize = Math.min(maxByHeight, maxByWidth, 16 * zoom);
-                                return (
-                                  <div
-                                    className="w-full h-full flex items-center px-1 text-slate-800 dark:text-slate-100 font-medium overflow-hidden whitespace-nowrap"
-                                    style={{ fontSize: `${Math.max(6, autoSize)}px` }}
-                                  >
-                                    <span className="truncate">{text}</span>
-                                  </div>
-                                );
-                              })()}
-                              {PAYMENT_FIELDS.includes(field.type) && (() => {
-                                const boxW = field.width * zoom;
-                                const boxH = field.height * zoom;
-                                const text = `${CURRENCY_SYMBOLS[field.currency || 'USD']}${filledFields[field.id]}`;
-                                const maxByHeight = Math.max(8, boxH * 0.65);
-                                const charW = text.length * 0.6;
-                                const maxByWidth = charW > 0 ? Math.max(6, (boxW - 8) / charW) : maxByHeight;
-                                const autoSize = Math.min(maxByHeight, maxByWidth, 16 * zoom);
-                                return (
-                                  <div
-                                    className="w-full h-full flex items-center px-1 text-green-700 font-semibold overflow-hidden whitespace-nowrap"
-                                    style={{ fontSize: `${Math.max(6, autoSize)}px` }}
-                                  >
-                                    <span className="truncate">{text}</span>
-                                  </div>
-                                );
-                              })()}
                               {!RADIO_FIELDS.includes(field.type) && (
-                                <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-md border-2 border-white">
-                                  <Check className="h-2.5 w-2.5 text-white" />
+                                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-white" style={{ backgroundColor: '#10b981' }}>
+                                  <Check className="h-2 w-2 text-white" />
                                 </div>
                               )}
+                              {/* Resize handle on filled fields too */}
+                              <div
+                                className="absolute bottom-0 right-0 w-4 h-4 opacity-0 group-hover/filled:opacity-60 transition-opacity cursor-se-resize z-10"
+                                style={{ color: accent }}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const ovr2 = fieldPositionOverrides[field.id];
+                                  fieldDragRef.current = {
+                                    fieldId: field.id,
+                                    mode: 'resize',
+                                    startMouseX: e.clientX,
+                                    startMouseY: e.clientY,
+                                    startFieldX: ovr2?.x ?? field.x,
+                                    startFieldY: ovr2?.y ?? field.y,
+                                    startFieldW: ovr2?.w ?? field.width,
+                                    startFieldH: ovr2?.h ?? field.height,
+                                  };
+                                }}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="absolute bottom-0.5 right-0.5">
+                                  <path d="M2 8L8 2M5 8L8 5M8 8V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                              </div>
                             </div>
+
+                          /* ── Inline text editing ──────────────────────── */
+                          ) : isInlineEditing ? (
+                            <div className="w-full h-full" style={{ borderBottom: `2px solid ${accent}`, backgroundColor: `${accent}08` }}>
+                              <input
+                                autoFocus
+                                type={field.type === 'email' ? 'email' : 'text'}
+                                value={textInputValue}
+                                onChange={(e) => setTextInputValue(e.target.value)}
+                                onBlur={handleTextFieldSave}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleTextFieldSave();
+                                  if (e.key === 'Escape') { setEditingTextFieldId(null); setTextInputValue(''); }
+                                }}
+                                placeholder={field.placeholder || `Enter ${field.label}…`}
+                                className="w-full h-full bg-transparent border-0 outline-none px-1.5 text-slate-800 placeholder:text-slate-400/60"
+                                style={{ fontSize: `${fontSize}px` }}
+                              />
+                            </div>
+
+                          /* ── Inline payment editing ───────────────────── */
+                          ) : isInlinePayment ? (
+                            <div className="w-full h-full flex items-center" style={{ borderBottom: `2px solid ${accent}`, backgroundColor: `${accent}08` }}>
+                              <span className="pl-1 text-slate-500" style={{ fontSize: `${fontSize}px` }}>{CURRENCY_SYMBOLS[field.currency || 'USD']}</span>
+                              <input
+                                autoFocus
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={paymentInputValue}
+                                onChange={(e) => setPaymentInputValue(e.target.value)}
+                                onBlur={() => {
+                                  if (paymentInputValue.trim()) {
+                                    const formatted = parseFloat(paymentInputValue).toFixed(field.currency === 'JPY' ? 0 : 2);
+                                    setFilledFields(prev => ({ ...prev, [editingPaymentFieldId!]: formatted }));
+                                    setJustCompletedField(editingPaymentFieldId!);
+                                    advanceToNextField();
+                                  }
+                                  setEditingPaymentFieldId(null);
+                                  setPaymentInputValue('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && paymentInputValue.trim()) {
+                                    const formatted = parseFloat(paymentInputValue).toFixed(field.currency === 'JPY' ? 0 : 2);
+                                    setFilledFields(prev => ({ ...prev, [editingPaymentFieldId!]: formatted }));
+                                    setJustCompletedField(editingPaymentFieldId!);
+                                    setEditingPaymentFieldId(null);
+                                    setPaymentInputValue('');
+                                    advanceToNextField();
+                                  }
+                                  if (e.key === 'Escape') { setEditingPaymentFieldId(null); setPaymentInputValue(''); }
+                                }}
+                                className="flex-1 h-full bg-transparent border-0 outline-none pr-1 text-slate-800 font-medium"
+                                style={{ fontSize: `${fontSize}px` }}
+                              />
+                            </div>
+
+                          /* ── Unfilled field ───────────────────────────── */
                           ) : (
                             <div
-                              className={`h-full rounded-md flex items-center justify-center gap-1.5 text-xs font-semibold transition-all duration-200 shadow-sm ${
-                                SIGNATURE_FIELDS.includes(field.type)
-                                  ? 'bg-amber-50/95 border-2 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-100 hover:shadow-md hover:shadow-amber-200/40'
-                                  : DATE_FIELDS.includes(field.type)
-                                    ? 'bg-sky-50/95 border-2 border-sky-400 text-sky-800 hover:bg-sky-100 hover:shadow-md hover:shadow-sky-200/40'
-                                    : UPLOAD_FIELDS.includes(field.type)
-                                      ? 'bg-orange-50/95 border-2 border-orange-400 text-orange-800 hover:bg-orange-100 hover:shadow-md hover:shadow-orange-200/40'
-                                      : RADIO_FIELDS.includes(field.type)
-                                        ? 'bg-fuchsia-50/95 border-2 border-fuchsia-400 text-fuchsia-800 hover:bg-fuchsia-100 hover:shadow-md hover:shadow-fuchsia-200/40'
-                                        : DROPDOWN_FIELDS.includes(field.type)
-                                          ? 'bg-sky-50/95 border-2 border-sky-400 text-sky-700 hover:bg-sky-100 hover:shadow-md hover:shadow-sky-200/40'
-                                          : PAYMENT_FIELDS.includes(field.type)
-                                            ? 'bg-green-50/95 border-2 border-green-400 text-green-700 hover:bg-green-100 hover:shadow-md hover:shadow-green-200/40'
-                                            : 'bg-violet-50/95 border-2 border-violet-400 text-violet-800 hover:bg-violet-100 hover:shadow-md hover:shadow-violet-200/40'
-                              } ${isCurrentField ? 'ring-2 ring-offset-2 ring-blue-500 animate-subtle-pulse shadow-lg shadow-blue-200/50 scale-[1.03]' : ''}`}
+                              className="w-full h-full relative flex items-center select-none overflow-visible"
+                              style={{
+                                border: `1px solid ${accent}55`,
+                                backgroundColor: `${accent}07`,
+                                borderRadius: 3,
+                                cursor: isBeingDragged ? 'grabbing' : 'pointer',
+                                boxShadow: isCurrentField ? `0 0 0 2px ${accent}60` : undefined,
+                              }}
+                              /* Long-press anywhere → drag; quick tap → click/edit */
+                              onMouseDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.stopPropagation();
+                                const ovr2 = fieldPositionOverrides[field.id];
+                                const startInfo = {
+                                  fieldId: field.id,
+                                  mode: 'move' as const,
+                                  startMouseX: e.clientX,
+                                  startMouseY: e.clientY,
+                                  startFieldX: ovr2?.x ?? field.x,
+                                  startFieldY: ovr2?.y ?? field.y,
+                                  startFieldW: ovr2?.w ?? field.width,
+                                  startFieldH: ovr2?.h ?? field.height,
+                                };
+                                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                longPressTimerRef.current = setTimeout(() => {
+                                  longPressTimerRef.current = null;
+                                  wasDragRef.current = true;
+                                  fieldDragRef.current = startInfo;
+                                  setDraggingFieldId(field.id);
+                                }, 280);
+                              }}
+                              onClick={() => {
+                                if (wasDragRef.current) return; // suppress click after a drag
+                                handleFieldClick(field);
+                              }}
                             >
+                              {/* Left accent strip */}
+                              <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-sm" style={{ backgroundColor: accent }} />
+
+                              {/* Field content */}
                               {RADIO_FIELDS.includes(field.type) ? (
-                                <div className="w-4 h-4 rounded-full border-2 border-fuchsia-400 bg-white" />
+                                <div className="w-full flex items-center justify-center">
+                                  <div className="w-3.5 h-3.5 rounded-full bg-white" style={{ border: `1.5px solid ${accent}` }} />
+                                </div>
                               ) : (
-                                <>
-                                  <Icon className="h-3.5 w-3.5" />
-                                  <span style={{ fontSize: Math.max(10, 11 * zoom) }}>
-                                    {getFieldTagLabel(field.type)}
-                                  </span>
-                                </>
+                                <span
+                                  className="pl-2 pr-5 truncate font-medium"
+                                  style={{ fontSize: `${Math.max(8, fontSize * 0.88)}px`, color: `${accent}cc` }}
+                                >
+                                  {isBeingDragged ? '↕ Moving…' : getFieldPlaceholder(field)}
+                                </span>
                               )}
+
+                              {/* Resize handle — bottom-right corner */}
+                              <div
+                                className="absolute bottom-0 right-0 w-4 h-4 opacity-0 group-hover:opacity-80 transition-opacity cursor-se-resize z-10"
+                                style={{ color: accent }}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
+                                  const ovr2 = fieldPositionOverrides[field.id];
+                                  fieldDragRef.current = {
+                                    fieldId: field.id,
+                                    mode: 'resize',
+                                    startMouseX: e.clientX,
+                                    startMouseY: e.clientY,
+                                    startFieldX: ovr2?.x ?? field.x,
+                                    startFieldY: ovr2?.y ?? field.y,
+                                    startFieldW: ovr2?.w ?? field.width,
+                                    startFieldH: ovr2?.h ?? field.height,
+                                  };
+                                }}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="absolute bottom-0.5 right-0.5">
+                                  <path d="M2 8L8 2M5 8L8 5M8 8V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2000,46 +2232,7 @@ export function SigningPageContent({
         </div>
       )}
 
-      {/* Text Field Input Modal */}
-      {editingTextFieldId && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
-          <div className="w-full max-w-md signing-glass-card-solid rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-              <h3 className="text-lg font-semibold text-white">
-                {assignedFields.find(f => f.id === editingTextFieldId)?.label || 'Enter Value'}
-              </h3>
-              <button onClick={() => { setEditingTextFieldId(null); setTextInputValue(''); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-5">
-              <input
-                ref={textInputRef}
-                type={assignedFields.find(f => f.id === editingTextFieldId)?.type === 'email' ? 'email' : 'text'}
-                value={textInputValue}
-                onChange={(e) => setTextInputValue(e.target.value)}
-                placeholder={assignedFields.find(f => f.id === editingTextFieldId)?.placeholder || 'Enter value'}
-                className="w-full h-12 px-4 text-lg bg-white/[0.03] border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleTextFieldSave();
-                }}
-              />
-            </div>
-
-            <div className="px-5 pb-5">
-              <button
-                data-testid="button-save-text-field"
-                onClick={handleTextFieldSave}
-                disabled={!textInputValue.trim()}
-                className="w-full h-11 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl font-medium disabled:opacity-30 transition-all"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Text field is now edited inline in the PDF overlay — no modal needed */}
 
       {/* Dropdown Picker Modal */}
       {showDropdownFieldId && (() => {
@@ -2081,70 +2274,7 @@ export function SigningPageContent({
         );
       })()}
 
-      {/* Payment Input Modal */}
-      {editingPaymentFieldId && (() => {
-        const paymentField = assignedFields.find(f => f.id === editingPaymentFieldId);
-        if (!paymentField) return null;
-        const currencySymbol = CURRENCY_SYMBOLS[paymentField.currency || 'USD'];
-        return (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
-            <div className="w-full max-w-md signing-glass-card-solid rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-                <h3 className="text-lg font-semibold text-white">
-                  Enter Amount ({paymentField.currency || 'USD'})
-                </h3>
-                <button onClick={() => { setEditingPaymentFieldId(null); setPaymentInputValue(''); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-5">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-white/60">{currencySymbol}</span>
-                  <input
-                    type="number"
-                    value={paymentInputValue}
-                    onChange={(e) => setPaymentInputValue(e.target.value)}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className="flex-1 h-14 px-4 text-2xl font-semibold bg-white/[0.03] border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-transparent"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && paymentInputValue.trim()) {
-                        const formatted = parseFloat(paymentInputValue).toFixed(paymentField.currency === 'JPY' ? 0 : 2);
-                        setFilledFields(prev => ({ ...prev, [editingPaymentFieldId]: formatted }));
-                        setJustCompletedField(editingPaymentFieldId);
-                        setEditingPaymentFieldId(null);
-                        setPaymentInputValue('');
-                        advanceToNextField();
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="px-5 pb-5">
-                <button
-                  data-testid="button-save-payment-field"
-                  onClick={() => {
-                    if (paymentInputValue.trim()) {
-                      const formatted = parseFloat(paymentInputValue).toFixed(paymentField.currency === 'JPY' ? 0 : 2);
-                      setFilledFields(prev => ({ ...prev, [editingPaymentFieldId]: formatted }));
-                      setJustCompletedField(editingPaymentFieldId);
-                      setEditingPaymentFieldId(null);
-                      setPaymentInputValue('');
-                      advanceToNextField();
-                    }
-                  }}
-                  disabled={!paymentInputValue.trim()}
-                  className="w-full h-11 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white rounded-xl font-medium disabled:opacity-30 transition-all"
-                >
-                  Save Amount
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Payment field is now edited inline in the PDF overlay — no modal needed */}
 
       {/* Upload Modal */}
       {showUploadModal && uploadingFieldId && (

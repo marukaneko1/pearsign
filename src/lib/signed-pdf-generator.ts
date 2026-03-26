@@ -301,7 +301,7 @@ export async function generateSignedPDF(options: SignedPDFOptions): Promise<Uint
   // Apply PKI digital signature if enabled
   if (applyDigitalSignature && orgId) {
     try {
-      console.log('[SignedPDF] Applying PKI digital signature for Adobe recognition...');
+      if (process.env.NODE_ENV !== 'production') console.log('[SignedPDF] Applying PKI digital signature for Adobe recognition...');
 
       // Collect signature field positions for the digital signature
       const digitalSignatureFields: SignatureFieldPosition[] = [];
@@ -327,14 +327,14 @@ export async function generateSignedPDF(options: SignedPDFOptions): Promise<Uint
               signerEmail: signerEmail,
             });
 
-            console.log(`[SignedPDF] Digital signature field: ${field.type} at page ${field.page}, pos [${field.x}, ${pdfY}, ${field.x + field.width}, ${pdfY + field.height}]`);
+            if (process.env.NODE_ENV !== 'production') console.log(`[SignedPDF] Digital signature field: ${field.type} at page ${field.page}, pos [${field.x}, ${pdfY}, ${field.x + field.width}, ${pdfY + field.height}]`);
           }
         }
       }
 
       // If no signature fields found, use a default invisible field
       if (digitalSignatureFields.length === 0) {
-        console.log('[SignedPDF] No signature fields found, using invisible signature');
+        if (process.env.NODE_ENV !== 'production') console.log('[SignedPDF] No signature fields found, using invisible signature');
       }
 
       const { signedPdfBytes, certificateInfo } = await signPdfDocument({
@@ -348,9 +348,9 @@ export async function generateSignedPDF(options: SignedPDFOptions): Promise<Uint
         signatureFields: digitalSignatureFields.length > 0 ? digitalSignatureFields : undefined,
       });
 
-      console.log('[SignedPDF] PKI digital signature applied successfully');
-      console.log(`[SignedPDF] Certificate: ${certificateInfo.subject}`);
-      console.log(`[SignedPDF] Valid until: ${certificateInfo.validTo.toISOString()}`);
+      if (process.env.NODE_ENV !== 'production') console.log('[SignedPDF] PKI digital signature applied successfully');
+      if (process.env.NODE_ENV !== 'production') console.log(`[SignedPDF] Certificate: ${certificateInfo.subject}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[SignedPDF] Valid until: ${certificateInfo.validTo.toISOString()}`);
 
       return signedPdfBytes;
     } catch (err) {

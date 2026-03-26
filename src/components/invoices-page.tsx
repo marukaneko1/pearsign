@@ -132,10 +132,10 @@ export function InvoicesPage() {
 
   const initializeTables = useCallback(async () => {
     try {
-      console.log("Initializing invoicing tables...");
+      if (process.env.NODE_ENV !== 'production') console.log("Initializing invoicing tables...");
       const response = await fetch("/api/invoices/init", { method: "POST" });
       if (response.ok) {
-        console.log("Tables initialized successfully");
+        if (process.env.NODE_ENV !== 'production') console.log("Tables initialized successfully");
         return true;
       }
       return false;
@@ -274,11 +274,11 @@ export function InvoicesPage() {
       customer_name: invoice.customer_name,
       customer_email: invoice.customer_email,
       customer_phone: invoice.customer_phone,
-      customer_address: (invoice as any).customer_address,
-      customer_city: (invoice as any).customer_city,
-      customer_state: (invoice as any).customer_state,
-      customer_zip: (invoice as any).customer_zip,
-      customer_country: (invoice as any).customer_country,
+      customer_address: invoice.customer_address,
+      customer_city: invoice.customer_city,
+      customer_state: invoice.customer_state,
+      customer_zip: invoice.customer_zip,
+      customer_country: invoice.customer_country,
       line_items: (invoice.line_items || []).map((item: any) => ({
         description: item.description,
         quantity: item.quantity,
@@ -291,8 +291,8 @@ export function InvoicesPage() {
       memo: invoice.memo,
       terms: invoice.terms,
       po_number: null,
-      discount_type: (invoice as any).discount_type,
-      discount_value: (invoice as any).discount_value,
+      discount_type: invoice.discount_type,
+      discount_value: invoice.discount_value,
     };
     setEditingInvoice(dup);
   };

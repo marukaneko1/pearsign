@@ -117,7 +117,7 @@ async function getTwilioSettings(orgId?: string): Promise<TwilioConfig> {
 
       if (tenantHasCredentials && s.enabled === true) {
         // Use tenant credentials
-        console.log(`[SMS Service] Using TENANT Twilio credentials for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[SMS Service] Using TENANT Twilio credentials for org: ${orgId}`);
         return {
           enabled: true,
           accountSid: s.account_sid as string,
@@ -131,7 +131,7 @@ async function getTwilioSettings(orgId?: string): Promise<TwilioConfig> {
         };
       } else if (platformFallbackEnabled && process.env.TWILIO_ACCOUNT_SID) {
         // Use platform fallback
-        console.log(`[SMS Service] Using PLATFORM Twilio credentials (fallback enabled) for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[SMS Service] Using PLATFORM Twilio credentials (fallback enabled) for org: ${orgId}`);
         return {
           enabled: true,
           accountSid: process.env.TWILIO_ACCOUNT_SID,
@@ -165,7 +165,7 @@ async function getTwilioSettings(orgId?: string): Promise<TwilioConfig> {
       const hasPlatformCredentials = !!process.env.TWILIO_ACCOUNT_SID;
 
       if (hasPlatformCredentials) {
-        console.log(`[SMS Service] Using PLATFORM Twilio credentials (no config exists) for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[SMS Service] Using PLATFORM Twilio credentials (no config exists) for org: ${orgId}`);
         return {
           enabled: true,
           accountSid: process.env.TWILIO_ACCOUNT_SID || null,
@@ -399,7 +399,7 @@ export async function sendOTP(
 
         if (response.ok) {
           const twilioSid = result.sid;
-          console.log(`[SMS] OTP sent via Twilio to ${maskPhoneNumber(phoneNumber)}, SID: ${twilioSid}, source: ${twilioSettings.source}, org: ${orgId}`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[SMS] OTP sent via Twilio to ${maskPhoneNumber(phoneNumber)}, SID: ${twilioSid}, source: ${twilioSettings.source}, org: ${orgId}`);
 
           // Log usage
           if (orgId) {
@@ -519,7 +519,7 @@ export async function verifyOTP(
       WHERE id = ${signingSessionId}
     `;
 
-    console.log(`[SMS] OTP verified for session ${signingSessionId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[SMS] OTP verified for session ${signingSessionId}`);
 
     return {
       success: true,

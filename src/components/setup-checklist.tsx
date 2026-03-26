@@ -49,6 +49,7 @@ export function SetupChecklist({
   onStartTour
 }: SetupChecklistProps) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [progress, setProgress] = useState<SetupProgress | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
@@ -56,6 +57,7 @@ export function SetupChecklist({
   const loadProgress = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const response = await fetch('/api/tenant/onboarding');
       const data = await response.json();
 
@@ -67,6 +69,7 @@ export function SetupChecklist({
       }
     } catch (error) {
       console.error('Failed to load setup progress:', error);
+      setLoadError('Failed to load setup progress');
     } finally {
       setLoading(false);
     }
@@ -103,6 +106,11 @@ export function SetupChecklist({
         </CardContent>
       </Card>
     );
+  }
+
+  if (loadError) {
+    console.warn('[SetupChecklist] Error loading progress:', loadError);
+    return null; // Silently hide on error — don't block the dashboard
   }
 
   if (!progress || dismissed || onboardingCompleted) {

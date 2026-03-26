@@ -243,7 +243,7 @@ export const POST = withTenant(
         `;
       }
 
-      console.log(`[Twilio Settings] Settings saved for tenant: ${tenantId}, enabled: ${enabled}, fallback: ${platformFallbackEnabled}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Twilio Settings] Settings saved for tenant: ${tenantId}, enabled: ${enabled}, fallback: ${platformFallbackEnabled}`);
 
       return NextResponse.json({
         success: true,

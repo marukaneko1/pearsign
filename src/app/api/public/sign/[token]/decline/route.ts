@@ -146,10 +146,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
         senderName = auditResult[0].actor_name || 'Document Owner';
         senderEmail = auditResult[0].actor_email;
         senderId = auditResult[0].actor_id || '';
-        console.log("[Decline] Found sender from audit log:", senderEmail);
+        if (process.env.NODE_ENV !== 'production') console.log("[Decline] Found sender from audit log:", senderEmail);
       }
     } catch (auditErr) {
-      console.log("[Decline] Audit log lookup failed:", auditErr);
+      if (process.env.NODE_ENV !== 'production') console.log("[Decline] Audit log lookup failed:", auditErr);
     }
 
     // Method 2: Fallback to user_profiles for the tenant
@@ -166,10 +166,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
           senderName = `${profileResult[0].first_name || ''} ${profileResult[0].last_name || ''}`.trim() || 'Document Owner';
           senderEmail = profileResult[0].email;
           senderId = profileResult[0].user_id || '';
-          console.log("[Decline] Found sender from user_profiles:", senderEmail);
+          if (process.env.NODE_ENV !== 'production') console.log("[Decline] Found sender from user_profiles:", senderEmail);
         }
       } catch (profileErr) {
-        console.log("[Decline] Profile lookup failed:", profileErr);
+        if (process.env.NODE_ENV !== 'production') console.log("[Decline] Profile lookup failed:", profileErr);
       }
     }
 
@@ -186,10 +186,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
           senderName = `${anyProfile[0].first_name || ''} ${anyProfile[0].last_name || ''}`.trim() || 'Document Owner';
           senderEmail = anyProfile[0].email;
           senderId = anyProfile[0].user_id || '';
-          console.log("[Decline] Found sender from any profile:", senderEmail);
+          if (process.env.NODE_ENV !== 'production') console.log("[Decline] Found sender from any profile:", senderEmail);
         }
       } catch {
-        console.log("[Decline] Any profile lookup failed");
+        if (process.env.NODE_ENV !== 'production') console.log("[Decline] Any profile lookup failed");
       }
     }
 
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           envelopeTitle: documentTitle,
           reason: reason || "No reason provided",
         });
-        console.log("[Decline] Created in-app notification for sender");
+        if (process.env.NODE_ENV !== 'production') console.log("[Decline] Created in-app notification for sender");
       }
     } catch (notifyErr) {
       console.error("[Decline] Error creating notification:", notifyErr);
@@ -228,12 +228,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
         });
 
         if (result.success) {
-          console.log("[Decline] Email notification sent to sender:", senderEmail);
+          if (process.env.NODE_ENV !== 'production') console.log("[Decline] Email notification sent to sender:", senderEmail);
         } else {
-          console.log("[Decline] Failed to send email notification:", result.error);
+          if (process.env.NODE_ENV !== 'production') console.log("[Decline] Failed to send email notification:", result.error);
         }
       } else {
-        console.log("[Decline] No sender email found, skipping email notification");
+        if (process.env.NODE_ENV !== 'production') console.log("[Decline] No sender email found, skipping email notification");
       }
     } catch (emailErr) {
       console.error("[Decline] Error sending email notification:", emailErr);

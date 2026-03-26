@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("[Salesforce Callback] Processing for tenant:", tenantId);
+    if (process.env.NODE_ENV !== 'production') console.log("[Salesforce Callback] Processing for tenant:", tenantId);
 
     if (error) {
       console.error("[Salesforce Callback] OAuth error:", error, errorDescription);
@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
         updated_at = NOW()
     `;
 
-    console.log("[Salesforce Callback] Successfully connected for tenant:", tenantId, "user:", userEmail, "Instance:", tokenData.instance_url);
+    if (process.env.NODE_ENV !== 'production') console.log("[Salesforce Callback] Successfully connected for tenant:", tenantId, "user:", userEmail, "Instance:", tokenData.instance_url);
 
     // Redirect back to integrations page with success
     return NextResponse.redirect(

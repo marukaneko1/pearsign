@@ -191,6 +191,14 @@ export const SUBSCRIPTION_PLANS: Record<TenantPlan, SubscriptionPlan> = {
 
 // ============== BILLING SERVICE ==============
 
+// Lazy one-time guard so tables are created on first use even before instrumentation runs
+let _tablesReady = false;
+async function ensureBillingTables() {
+  if (_tablesReady) return;
+  await BillingService.initializeTables();
+  _tablesReady = true;
+}
+
 export const BillingService = {
   /**
    * Initialize billing tables
@@ -269,13 +277,14 @@ export const BillingService = {
       CREATE INDEX IF NOT EXISTS idx_usage_records_tenant ON billing_usage_records(tenant_id)
     `;
 
-    console.log('[BillingService] Tables initialized');
+    if (process.env.NODE_ENV !== 'production') console.log('[BillingService] Tables initialized');
   },
 
   /**
    * Get subscription for tenant
    */
   async getSubscription(tenantId: string): Promise<Subscription | null> {
+    await ensureBillingTables();
     const result = await sql`
       SELECT * FROM subscriptions WHERE tenant_id = ${tenantId}
     `;
@@ -288,6 +297,7 @@ export const BillingService = {
    * Create or update subscription
    */
   async upsertSubscription(tenantId: string, data: Partial<Subscription>): Promise<Subscription> {
+    await ensureBillingTables();
     const result = await sql`
       INSERT INTO subscriptions (
         tenant_id, stripe_customer_id, stripe_subscription_id, plan, status,
@@ -323,6 +333,7 @@ export const BillingService = {
    * Get invoices for tenant
    */
   async getInvoices(tenantId: string, limit = 10): Promise<Invoice[]> {
+    await ensureBillingTables();
     const result = await sql`
       SELECT * FROM billing_invoices
       WHERE tenant_id = ${tenantId}
@@ -362,6 +373,7 @@ export const BillingService = {
    * Get payment methods for tenant
    */
   async getPaymentMethods(tenantId: string): Promise<PaymentMethod[]> {
+    await ensureBillingTables();
     const result = await sql`
       SELECT * FROM payment_methods
       WHERE tenant_id = ${tenantId}
@@ -411,8 +423,8 @@ export const BillingService = {
       VALUES (${tenantId}, ${metric}, ${quantity})
     `;
 
-    // In production, also report to Stripe for metered billing
-    // await reportUsageToStripe(tenantId, metric, quantity);
+    // Report to Stripe for metered billing when configured
+    // Requires a Stripe subscription item ID stored per-tenant for metered pricing
   },
 
   /**
@@ -484,7 +496,7 @@ export const BillingService = {
       ? planInfo.stripePriceIdMonthly
       : planInfo.stripePriceIdYearly;
 
-    console.log(`[Billing] Creating checkout for tenant ${tenantId}:`, {
+    if (process.env.NODE_ENV !== 'production') console.log(`[Billing] Creating checkout for tenant ${tenantId}:`, {
       plan,
       billingPeriod,
       priceId,
@@ -492,12 +504,8 @@ export const BillingService = {
 
     // Check if Stripe is configured
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey || stripeSecretKey.startsWith('sk_test_placeholder')) {
-      // Demo mode - return mock URL with plan info
-      console.log('[Billing] Stripe not configured, using demo mode');
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      // For demo, redirect to a success simulation page
-      return `${baseUrl}/settings?tab=billing&upgraded=${plan}&demo=true`;
+    if (!stripeSecretKey) {
+      throw new Error('Stripe is not configured. Please set the STRIPE_SECRET_KEY environment variable.');
     }
 
     // Real Stripe integration
@@ -554,6 +562,56 @@ export const BillingService = {
   },
 
   /**
+   * Create a Stripe Checkout session in "setup" mode to collect a payment method.
+   * Creates a Stripe customer for the tenant if one doesn't exist yet.
+   */
+  async createSetupSession(tenantId: string): Promise<string> {
+    await ensureBillingTables();
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      throw new Error('Stripe is not configured. Please set the STRIPE_SECRET_KEY environment variable.');
+    }
+
+    const Stripe = (await import('stripe')).default;
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2025-12-15.clover' });
+
+    // Get or create Stripe customer
+    const subscription = await this.getSubscription(tenantId).catch(() => null);
+    let customerId = subscription?.stripeCustomerId;
+
+    if (!customerId) {
+      const tenant = await TenantService.getTenantById(tenantId);
+      if (!tenant) throw new Error('Tenant not found');
+
+      const customer = await stripe.customers.create({
+        metadata: { tenantId },
+        name: tenant.name,
+      });
+      customerId = customer.id;
+
+      // Persist the new customer ID
+      await this.upsertSubscription(tenantId, {
+        stripeCustomerId: customerId,
+        plan: 'free',
+        status: 'active',
+      });
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      mode: 'setup',
+      success_url: `${baseUrl}/settings?tab=billing&setup=success`,
+      cancel_url: `${baseUrl}/settings?tab=billing`,
+    });
+
+    if (!session.url) throw new Error('Failed to create setup session');
+    return session.url;
+  },
+
+  /**
    * Create Stripe customer portal session
    */
   async createPortalSession(tenantId: string): Promise<string> {
@@ -561,11 +619,8 @@ export const BillingService = {
 
     // Check if Stripe is configured
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey || stripeSecretKey.startsWith('sk_test_placeholder')) {
-      // Demo mode
-      console.log('[Billing] Stripe not configured, using demo mode for portal');
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      return `${baseUrl}/settings?tab=billing&portal=demo`;
+    if (!stripeSecretKey) {
+      throw new Error('Stripe is not configured. Please set the STRIPE_SECRET_KEY environment variable.');
     }
 
     if (!subscription?.stripeCustomerId) {
@@ -737,7 +792,7 @@ export const BillingService = {
         const plan = sessionMetadata?.plan;
         if (sessionTenantId && plan) {
           await TenantService.updateTenant(sessionTenantId, { plan: plan as TenantPlan });
-          console.log(`[Stripe] Checkout completed: tenant ${sessionTenantId} upgraded to ${plan}`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[Stripe] Checkout completed: tenant ${sessionTenantId} upgraded to ${plan}`);
         }
         break;
       }
@@ -789,7 +844,7 @@ export const BillingService = {
                 });
               }
             });
-            console.log('[Billing] Stored invoice:', invoice.id, 'status:', status);
+            if (process.env.NODE_ENV !== 'production') console.log('[Billing] Stored invoice:', invoice.id, 'status:', status);
           } catch (e) {
             console.error('[Billing] Failed to store invoice:', e);
           }
@@ -818,7 +873,7 @@ export const BillingService = {
       }
 
       default:
-        console.log(`[Billing] Unhandled webhook event: ${type}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Billing] Unhandled webhook event: ${type}`);
     }
   },
 };

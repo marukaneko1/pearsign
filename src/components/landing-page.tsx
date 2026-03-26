@@ -460,9 +460,9 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
             <div>
               <h4 className="font-semibold text-white mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">About</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Careers</a></li>
+                <li><a href="mailto:info@pearsign.com" className="hover:text-white">About</a></li>
+                <li><a href="mailto:info@pearsign.com" className="hover:text-white">Blog</a></li>
+                <li><a href="mailto:info@pearsign.com" className="hover:text-white">Careers</a></li>
                 <li><a href="mailto:info@pearsign.com" className="hover:text-white">Contact</a></li>
               </ul>
             </div>
@@ -471,8 +471,8 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
               <ul className="space-y-2 text-sm">
                 <li><a href="/terms" className="hover:text-white">Terms of Service</a></li>
                 <li><a href="/privacy" className="hover:text-white">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white">Cookie Policy</a></li>
-                <li><a href="#" className="hover:text-white">DPA</a></li>
+                <li><a href="/privacy#cookies" className="hover:text-white">Cookie Policy</a></li>
+                <li><a href="mailto:legal@pearsign.com" className="hover:text-white">DPA</a></li>
               </ul>
             </div>
           </div>

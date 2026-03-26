@@ -26,7 +26,7 @@ async function ensureRemindersTable() {
       )
     `;
   } catch (err) {
-    console.log("[Send Reminder] Table creation skipped:", err);
+    if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Table creation skipped:", err);
   }
 }
 
@@ -40,7 +40,7 @@ export const POST = withTenant(
       const body = await request.json();
       const { envelopeId, recipientEmail, token } = body;
 
-      console.log("[Send Reminder] Request received:", { envelopeId, recipientEmail, token, tenantId });
+      if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Request received:", { envelopeId, recipientEmail, token, tenantId });
 
       if (!envelopeId && !token) {
         return NextResponse.json(
@@ -72,7 +72,7 @@ export const POST = withTenant(
         `;
       }
 
-      console.log("[Send Reminder] Found sessions:", sessions.length);
+      if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Found sessions:", sessions.length);
 
       if (sessions.length === 0) {
         return NextResponse.json(
@@ -82,7 +82,7 @@ export const POST = withTenant(
       }
 
       const session = sessions[0];
-      console.log("[Send Reminder] Session:", {
+      if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Session:", {
         id: session.id,
         status: session.status,
         recipient: session.recipient_email,
@@ -115,11 +115,11 @@ export const POST = withTenant(
         `;
         currentReminderCount = parseInt(reminderCountResult[0]?.count) || 0;
       } catch (err) {
-        console.log("[Send Reminder] Could not get reminder count, using 0:", err);
+        if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Could not get reminder count, using 0:", err);
       }
       const newReminderCount = currentReminderCount + 1;
 
-      console.log("[Send Reminder] Sending to:", session.recipient_email, "count:", newReminderCount);
+      if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Sending to:", session.recipient_email, "count:", newReminderCount);
 
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pearsign.com';
       const senderEmail = process.env.SENDGRID_FROM_EMAIL || 'no-reply@premiumcapital.com';
@@ -164,7 +164,7 @@ export const POST = withTenant(
           VALUES (${tenantId}, ${session.envelope_id}, ${session.id}::uuid, 'reminder', ${newReminderCount})
         `;
       } catch (err) {
-        console.log("[Send Reminder] Could not record reminder:", err);
+        if (process.env.NODE_ENV !== 'production') console.log("[Send Reminder] Could not record reminder:", err);
       }
 
       // Log the event

@@ -256,7 +256,7 @@ export async function sendOnboardingWelcomeEmail(data: OnboardingEmailData): Pro
       textContent,
     });
 
-    console.log('[OnboardingEmail] Welcome email sent to:', data.recipientEmail);
+    if (process.env.NODE_ENV !== 'production') console.log('[OnboardingEmail] Welcome email sent to:', data.recipientEmail);
     return true;
   } catch (error) {
     console.error('[OnboardingEmail] Failed to send welcome email:', error);
@@ -354,7 +354,7 @@ export async function sendGettingStartedTipsEmail(data: {
       textContent: `Hi ${firstName}, here are some tips to help you become a PearSign pro...`,
     });
 
-    console.log('[OnboardingEmail] Tips email sent to:', data.recipientEmail);
+    if (process.env.NODE_ENV !== 'production') console.log('[OnboardingEmail] Tips email sent to:', data.recipientEmail);
     return true;
   } catch (error) {
     console.error('[OnboardingEmail] Failed to send tips email:', error);

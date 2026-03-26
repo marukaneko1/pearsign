@@ -37,7 +37,7 @@ import { useAuth } from "@/contexts/auth-context";
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 }
 
 interface SendDocumentDialogProps {
@@ -68,9 +68,6 @@ interface SignatureField {
 
 type Step = 'upload' | 'recipients' | 'fields' | 'review' | 'sending' | 'success';
 
-// Demo mode flag
-const DEMO_MODE = true;
-
 // Recipient colors for field assignment
 const RECIPIENT_COLORS = [
   '#10b981', // emerald
@@ -81,37 +78,6 @@ const RECIPIENT_COLORS = [
   '#ec4899', // pink
 ];
 
-const generateDemoId = () => `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-const createDemoEnvelope = (
-  title: string,
-  message: string,
-  recipients: Recipient[],
-  fields: SignatureField[],
-  createdBy = '',
-): Envelope => ({
-  id: generateDemoId(),
-  title,
-  description: message,
-  status: 'in_signing',
-  signingOrder: 'sequential',
-  organizationId: '',
-  createdBy,
-  recipients: recipients.filter(r => r.name && r.email).map((r, index) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    role: r.role,
-    status: 'sent' as const,
-    signingOrder: index + 1,
-  })),
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  metadata: {
-    documentCount: 1,
-    recipientCount: recipients.filter(r => r.name && r.email).length,
-  },
-});
 
 export function SendDocumentDialog({ open, onOpenChange, onSuccess }: SendDocumentDialogProps) {
   const { user } = useAuth();
@@ -373,15 +339,9 @@ export function SendDocumentDialog({ open, onOpenChange, onSuccess }: SendDocume
     setError(null);
 
     try {
-      if (DEMO_MODE) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setUploadedDocumentId(generateDemoId());
-        setStep('recipients');
-      } else {
-        const doc = await documentsApi.upload(selectedFile);
-        setUploadedDocumentId(doc.id);
-        setStep('recipients');
-      }
+      const doc = await documentsApi.upload(selectedFile);
+      setUploadedDocumentId(doc.id);
+      setStep('recipients');
     } catch (err: unknown) {
       const error = err as Error;
       setError(error.message || "Failed to upload document");
@@ -416,42 +376,34 @@ export function SendDocumentDialog({ open, onOpenChange, onSuccess }: SendDocume
     setStep('sending');
 
     try {
-      if (DEMO_MODE) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const demoEnvelope = createDemoEnvelope(title, message, recipients, fields, user?.id ?? '');
-        setCreatedEnvelope(demoEnvelope);
-        setStep('success');
-        onSuccess?.(demoEnvelope);
-      } else {
-        const envelope = await envelopesApi.create({
-          title,
-          description: message,
-          signingOrder: 'sequential',
-          enableReminders: true,
-          allowDecline: true,
-          message,
+      const envelope = await envelopesApi.create({
+        title,
+        description: message,
+        signingOrder: 'sequential',
+        enableReminders: true,
+        allowDecline: true,
+        message,
+      });
+
+      if (uploadedDocumentId) {
+        await envelopesApi.addDocument(envelope.id, {
+          documentId: uploadedDocumentId,
         });
-
-        if (uploadedDocumentId) {
-          await envelopesApi.addDocument(envelope.id, {
-            documentId: uploadedDocumentId,
-          });
-        }
-
-        for (const recipient of recipients.filter(r => r.name && r.email)) {
-          await envelopesApi.addRecipient(envelope.id, {
-            name: recipient.name,
-            email: recipient.email,
-            role: recipient.role,
-            signingOrder: recipients.indexOf(recipient) + 1,
-          });
-        }
-
-        const sentEnvelope = await envelopesApi.send(envelope.id);
-        setCreatedEnvelope(sentEnvelope);
-        setStep('success');
-        onSuccess?.(sentEnvelope);
       }
+
+      for (const recipient of recipients.filter(r => r.name && r.email)) {
+        await envelopesApi.addRecipient(envelope.id, {
+          name: recipient.name,
+          email: recipient.email,
+          role: recipient.role,
+          signingOrder: recipients.indexOf(recipient) + 1,
+        });
+      }
+
+      const sentEnvelope = await envelopesApi.send(envelope.id);
+      setCreatedEnvelope(sentEnvelope);
+      setStep('success');
+      onSuccess?.(sentEnvelope);
     } catch (err: unknown) {
       const error = err as Error;
       setError(error.message || "Failed to send document");

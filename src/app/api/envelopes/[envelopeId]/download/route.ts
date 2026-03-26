@@ -30,7 +30,7 @@ export const GET = withTenant<{ envelopeId: string }>(
 
       const { envelopeId } = params;
 
-      console.log('[Envelope Download] Fetching signed PDF for:', envelopeId, 'Tenant:', tenantId);
+      if (process.env.NODE_ENV !== 'production') console.log('[Envelope Download] Fetching signed PDF for:', envelopeId, 'Tenant:', tenantId);
 
       const sessions = await sql`
         SELECT signed_pdf_data, signed_pdf_object_path, recipient_name
@@ -45,7 +45,7 @@ export const GET = withTenant<{ envelopeId: string }>(
 
       if (sessions.length > 0) {
         const session = sessions[0];
-        console.log('[Envelope Download] Found signed PDF');
+        if (process.env.NODE_ENV !== 'production') console.log('[Envelope Download] Found signed PDF');
 
         const docs = await sql`
           SELECT title FROM envelope_documents WHERE envelope_id = ${envelopeId}
@@ -80,7 +80,7 @@ export const GET = withTenant<{ envelopeId: string }>(
       `;
 
       if (documents.length === 0 || (!documents[0].pdf_data && !documents[0].pdf_object_path)) {
-        console.log('[Envelope Download] No document found');
+        if (process.env.NODE_ENV !== 'production') console.log('[Envelope Download] No document found');
         return NextResponse.json(
           { error: "Document not found" },
           { status: 404 }
@@ -88,7 +88,7 @@ export const GET = withTenant<{ envelopeId: string }>(
       }
 
       const doc = documents[0];
-      console.log('[Envelope Download] Returning original PDF');
+      if (process.env.NODE_ENV !== 'production') console.log('[Envelope Download] Returning original PDF');
 
       let pdfBuffer: Buffer;
 

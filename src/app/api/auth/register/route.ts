@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
           WHERE id = ${userId}
         `;
       }
-      console.log('[Auth/Register] Reusing existing auth user (password updated):', email, userId);
+      if (process.env.NODE_ENV !== 'production') console.log('[Auth/Register] Reusing existing auth user (password updated):', email, userId);
     } else {
       try {
         const result = await AuthService.register({
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (emailResult.success) {
-          console.log('[Auth/Register] Verification email sent to:', email);
+          if (process.env.NODE_ENV !== 'production') console.log('[Auth/Register] Verification email sent to:', email);
         } else {
           console.error('[Auth/Register] Verification email FAILED for:', email, emailResult.error);
         }
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantName = invite.tenantName || organizationName?.trim() || `${firstName}'s Workspace`;
-    const tenantPlan = invite.plan || 'free';
+    const tenantPlan = (invite.plan || 'free') as import('@/lib/tenant').TenantPlan;
 
     let tenant: { id: string; name: string; slug: string; plan: string };
     let userRole = 'member';
@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
           VALUES (${tenant.id}, ${userId}, 'member', 'active', NOW(), ${JSON.stringify(ROLE_PERMISSIONS.member)})
         `;
         userRole = 'member';
-        console.log('[Auth/Register] Added user to existing tenant:', email, '->', tenant.name);
+        if (process.env.NODE_ENV !== 'production') console.log('[Auth/Register] Added user to existing tenant:', email, '->', tenant.name);
       } else {
         const slug = await generateUniqueSlug(tenantName);
         tenant = await TenantService.createTenant({
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
           slug,
           ownerId: userId,
           ownerEmail: email,
-          plan: tenantPlan as any,
+          plan: tenantPlan,
         });
         userRole = 'owner';
       }
@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
         slug,
         ownerId: userId,
         ownerEmail: email,
-        plan: tenantPlan as any,
+        plan: tenantPlan,
       });
       userRole = 'owner';
 
@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
       `;
     }
 
-    console.log('[Auth/Register] Created/joined tenant:', tenant.id, tenant.name, 'as', userRole);
+    if (process.env.NODE_ENV !== 'production') console.log('[Auth/Register] Created/joined tenant:', tenant.id, tenant.name, 'as', userRole);
 
     await TenantOnboardingService.getOnboardingStatus(tenant.id);
 

@@ -61,12 +61,12 @@ function ActivatePageContent() {
   }, [token]);
 
   const fetchInvite = async () => {
-    console.log('[Activate] Fetching invite for token:', token);
+    if (process.env.NODE_ENV !== 'production') console.log('[Activate] Fetching invite for token:', token);
     try {
       const response = await fetch(`/api/public/org-invite/${token}`);
-      console.log('[Activate] Response status:', response.status);
+      if (process.env.NODE_ENV !== 'production') console.log('[Activate] Response status:', response.status);
       const data = await response.json();
-      console.log('[Activate] Response data:', data);
+      if (process.env.NODE_ENV !== 'production') console.log('[Activate] Response data:', data);
 
       if (!response.ok) {
         setError(data.error || 'Invalid invite');
@@ -216,7 +216,7 @@ function ActivatePageContent() {
             </p>
             <Button
               className="mt-6 bg-[#2464ea] hover:bg-blue-700"
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/login')}
             >
               Go to Login
             </Button>
@@ -243,7 +243,7 @@ function ActivatePageContent() {
             </p>
             <Button
               className="bg-[#2464ea] hover:bg-blue-700"
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/login')}
             >
               Go to Login
             </Button>

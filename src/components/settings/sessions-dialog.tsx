@@ -85,6 +85,7 @@ export function SessionsDialog() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [terminatingId, setTerminatingId] = useState<string | null>(null);
   const [terminatingAll, setTerminatingAll] = useState(false);
   const [data, setData] = useState<SessionsResponse | null>(null);
@@ -92,13 +93,17 @@ export function SessionsDialog() {
   const fetchSessions = useCallback(async () => {
     try {
       setLoading(true);
+      setFetchError(null);
       const response = await fetch('/api/auth/sessions');
       if (response.ok) {
         const result = await response.json();
         setData(result);
+      } else {
+        setFetchError('Failed to load sessions. Please try again.');
       }
     } catch (error) {
       console.error('Error fetching sessions:', error);
+      setFetchError('Could not connect to server.');
       toast({
         title: "Error",
         description: "Failed to load sessions",

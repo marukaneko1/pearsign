@@ -61,7 +61,7 @@ export function BrandingSettings() {
     setLoading(true);
     try {
       // Initialize branding table with logo columns
-      await fetch('/api/settings/branding/init', { method: 'POST' }).catch(() => {});
+      await fetch('/api/settings/branding/init', { method: 'POST' }).catch(err => console.warn('[BrandingSettings] Init failed (non-fatal):', err));
 
       const data = await settingsApi.getBranding();
       setBranding(data);

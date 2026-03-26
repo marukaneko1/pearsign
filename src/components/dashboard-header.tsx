@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useTheme } from "next-themes";
-import { Menu, Moon, Sun, User, Settings, CreditCard, LogOut, Copy, Check, HelpCircle } from "lucide-react";
+import { Moon, Sun, User, Settings, CreditCard, LogOut, Copy, Check, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ interface User {
 
 interface DashboardHeaderProps {
   onMenuClick: () => void;
+  sidebarOpen?: boolean;
   user?: User | null;
   onLogout?: () => void;
   demoMode?: boolean;
@@ -35,7 +37,7 @@ interface DashboardHeaderProps {
 
 const AVATAR_COLOR = '#3565d4';
 
-export function DashboardHeader({ onMenuClick, user, onLogout, demoMode, onToggleDemoMode, onNavigate, onStartTour }: DashboardHeaderProps) {
+export function DashboardHeader({ onMenuClick, sidebarOpen, user, onLogout, demoMode, onToggleDemoMode, onNavigate, onStartTour }: DashboardHeaderProps) {
   const { theme, setTheme } = useTheme();
   const { currentTenant, isDemo } = useTenant();
   const { session } = useTenantSession();
@@ -94,14 +96,36 @@ export function DashboardHeader({ onMenuClick, user, onLogout, demoMode, onToggl
       <div className="flex h-14 items-center justify-between px-4">
         {/* Left side */}
         <div className="flex items-center gap-3">
-          {/* Mobile Menu Button */}
+          {/* Sidebar toggle — visible at all screen sizes */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden h-9 w-9"
+            className="h-9 w-9"
             onClick={onMenuClick}
+            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+            title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
           >
-            <Menu className="h-5 w-5" />
+            <span className="relative flex h-5 w-5 items-center justify-center">
+              {/* Hamburger lines with animated collapse/expand */}
+              <span
+                className={cn(
+                  "absolute block h-[2px] w-5 rounded-full bg-current transition-all duration-300",
+                  sidebarOpen ? "-translate-y-[6px]" : "-translate-y-[6px]"
+                )}
+              />
+              <span
+                className={cn(
+                  "absolute block h-[2px] rounded-full bg-current transition-all duration-300",
+                  sidebarOpen ? "w-5" : "w-3"
+                )}
+              />
+              <span
+                className={cn(
+                  "absolute block h-[2px] rounded-full bg-current transition-all duration-300",
+                  sidebarOpen ? "translate-y-[6px] w-5" : "translate-y-[6px] w-4"
+                )}
+              />
+            </span>
           </Button>
 
           {/* Logo */}
@@ -147,9 +171,9 @@ export function DashboardHeader({ onMenuClick, user, onLogout, demoMode, onToggl
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-9 w-9 rounded-full p-0 ml-1" data-tour="settings">
+              <Button variant="ghost" className="h-9 w-9 rounded-full p-0 ml-1" data-tour="settings" aria-label="User menu">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="" alt="User" />
+                  <AvatarImage src="" alt="" />
                   <AvatarFallback
                     className="text-white text-xs font-medium"
                     style={{ backgroundColor: AVATAR_COLOR }}

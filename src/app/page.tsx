@@ -29,7 +29,6 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useTenant } from "@/contexts/tenant-context";
 import { envelopesApi, Envelope } from "@/lib/api-client";
-import { sampleEnvelopes } from "@/lib/sample-data";
 import { TenantAdminDashboard } from "@/components/tenant-admin-dashboard";
 import { EmptyDashboardState, DemoModeBanner, NewTenantWelcome, SetupRequiredAlert } from "@/components/empty-tenant-state";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
@@ -40,7 +39,9 @@ type ViewType = "dashboard" | "documents" | "templates" | "sent" | "bulk-send" |
 export default function Home() {
   const { user, isLoading: authLoading, isLoggedIn, logout } = useAuth();
   const { isDemo, isLoading: tenantLoading } = useTenant();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
   const [currentView, setCurrentView] = useState<ViewType>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -121,7 +122,7 @@ export default function Home() {
 
         // Don't auto-show walkthrough - user can open via help icon
 
-        console.log('[Onboarding] Status:', {
+        if (process.env.NODE_ENV !== 'production') console.log('[Onboarding] Status:', {
           isFirstLogin: data.isFirstLogin,
           hasCompleted: data.status?.hasCompletedOnboarding,
           progress: data.progress?.overallProgress,
@@ -159,9 +160,8 @@ export default function Home() {
       if (data.envelopes && data.envelopes.length > 0) {
         // Use real envelopes from the database - tenant-isolated
         setEnvelopes(data.envelopes as Envelope[]);
-        console.log('[Dashboard] Loaded', data.envelopes.length, 'envelopes for tenant:', data.tenant?.id);
+        if (process.env.NODE_ENV !== 'production') console.log('[Dashboard] Loaded', data.envelopes.length, 'envelopes');
       } else {
-        console.log('[Dashboard] No envelopes found - showing empty state');
         setEnvelopes([]);
       }
     } catch (error) {
@@ -256,24 +256,19 @@ export default function Home() {
 
   // Handle voiding a document
   const handleVoidDocument = async (envelopeId: string, reason: string) => {
-    console.log("[Void] Starting void for envelope:", envelopeId);
-
     const response = await fetch("/api/envelopes/void", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ envelopeId, reason }),
     });
 
-    console.log("[Void] Response status:", response.status);
     const result = await response.json();
-    console.log("[Void] Response body:", result);
 
     if (!result.success) {
       console.error("Failed to void envelope:", result.error);
       throw new Error(result.error || "Failed to void envelope");
     }
 
-    console.log("[Void] Success, refreshing envelopes");
     // Refresh envelopes list
     await loadEnvelopes();
   };
@@ -409,7 +404,8 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <DashboardHeader
-        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        onMenuClick={() => setSidebarOpen(prev => !prev)}
+        sidebarOpen={sidebarOpen}
         user={userProfile || user}
         onLogout={logout}
         demoMode={false}
@@ -427,13 +423,14 @@ export default function Home() {
         <DashboardSidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          onToggle={() => setSidebarOpen(prev => !prev)}
           currentView={currentView}
           onNavigate={(view) => setCurrentView(view as ViewType)}
           onNewDocument={() => handleStartPrepareDocument()}
         />
 
         {/* Main Content */}
-        <main className="flex-1 p-4 lg:p-6 pb-28 lg:pb-6 max-w-[1200px] mx-auto w-full overflow-x-hidden">
+        <main id="main-content" className="flex-1 p-4 lg:p-6 pb-28 lg:pb-6 max-w-[1200px] mx-auto w-full overflow-x-hidden">
           {currentView === "dashboard" ? (
             <div className="space-y-3 sm:space-y-6">
               {/* Demo mode auth is handled by user avatar in header - no banner needed */}
@@ -467,6 +464,7 @@ export default function Home() {
                 onSendDocument={(file) => handleStartPrepareDocument(file)}
                 onUploadAndSign={(file) => handleStartSelfSign(file)}
                 onUseTemplate={() => setCurrentView('templates')}
+                onOpenAIWizard={() => setShowAIWizard(true)}
               />
 
               {/* Stats */}
@@ -529,6 +527,8 @@ export default function Home() {
             <AIGeneratorPage onSendForSignature={handleSendGeneratedDocument} />
           ) : currentView === "invoices" ? (
             <InvoicesPage />
+          ) : currentView === "settings" || currentView === "prepare-document" || currentView === "form-builder" ? (
+            null
           ) : (
             <div className="text-center py-12">
               <p className="text-muted-foreground">This page is coming soon!</p>
@@ -562,7 +562,7 @@ export default function Home() {
 
       {/* AI Document Wizard Dialog */}
       <Dialog open={showAIWizard} onOpenChange={setShowAIWizard}>
-        <DialogContent className="max-w-4xl h-[90vh] p-0" aria-describedby="ai-wizard-description">
+        <DialogContent className="sm:max-w-4xl sm:h-[90vh] p-0" aria-describedby="ai-wizard-description">
           <span id="ai-wizard-description" className="sr-only">
             AI-powered document generation wizard
           </span>

@@ -38,14 +38,23 @@ export interface Invoice {
   customer_name: string;
   customer_email: string;
   customer_phone: string | null;
+  customer_address: string | null;
+  customer_city: string | null;
+  customer_state: string | null;
+  customer_zip: string | null;
+  customer_country: string | null;
 
   // Financials
   line_items: LineItem[];
   subtotal: number;
   tax_total: number;
+  discount_type: string | null;
+  discount_value: number;
+  discount_total: number;
   total: number;
   currency: string; // ISO 4217
   amount_paid: number;
+  payment_history: unknown[];
 
   // Dates
   issue_date: string; // ISO date
@@ -54,6 +63,8 @@ export interface Invoice {
   // Content
   memo: string | null;
   terms: string | null;
+  notes_internal: string | null;
+  po_number: string | null;
 
   // References
   template_id: string | null;
@@ -72,6 +83,7 @@ export interface Invoice {
   signed_at: string | null;
   paid_at: string | null;
   voided_at: string | null;
+  void_reason: string | null;
   version: number;
 }
 
@@ -79,12 +91,20 @@ export interface CreateInvoiceInput {
   customer_name: string;
   customer_email: string;
   customer_phone?: string | null;
+  customer_address?: string | null;
+  customer_city?: string | null;
+  customer_state?: string | null;
+  customer_zip?: string | null;
+  customer_country?: string | null;
   line_items: Omit<LineItem, 'id' | 'amount'>[];
   currency?: string;
   issue_date?: string;
   due_date: string;
   memo?: string | null;
   terms?: string | null;
+  po_number?: string | null;
+  discount_type?: string | null;
+  discount_value?: number;
   template_id?: string | null;
   require_signature?: boolean;
   require_signature_before_payment?: boolean;
@@ -94,12 +114,20 @@ export interface UpdateInvoiceInput {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string | null;
+  customer_address?: string | null;
+  customer_city?: string | null;
+  customer_state?: string | null;
+  customer_zip?: string | null;
+  customer_country?: string | null;
   line_items?: Omit<LineItem, 'id' | 'amount'>[];
   currency?: string;
   issue_date?: string;
   due_date?: string;
   memo?: string | null;
   terms?: string | null;
+  po_number?: string | null;
+  discount_type?: string | null;
+  discount_value?: number;
   require_signature?: boolean;
   require_signature_before_payment?: boolean;
 }

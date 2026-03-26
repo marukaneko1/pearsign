@@ -217,7 +217,7 @@ async function getSendGridConfig(orgId?: string): Promise<SendGridConfig> {
           platformFallbackEnabled,
           source: 'tenant',
         };
-        console.log(`[Email Service] Using TENANT SendGrid credentials for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Email Service] Using TENANT SendGrid credentials for org: ${orgId}`);
       } else if (platformFallbackEnabled && process.env.SENDGRID_API_KEY) {
         config = {
           apiKey: process.env.SENDGRID_API_KEY,
@@ -227,7 +227,7 @@ async function getSendGridConfig(orgId?: string): Promise<SendGridConfig> {
           platformFallbackEnabled: true,
           source: 'platform',
         };
-        console.log(`[Email Service] Using PLATFORM SendGrid credentials (fallback enabled) for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Email Service] Using PLATFORM SendGrid credentials (fallback enabled) for org: ${orgId}`);
       } else if (process.env.SENDGRID_API_KEY) {
         config = {
           apiKey: process.env.SENDGRID_API_KEY,
@@ -237,7 +237,7 @@ async function getSendGridConfig(orgId?: string): Promise<SendGridConfig> {
           platformFallbackEnabled: true,
           source: 'platform',
         };
-        console.log(`[Email Service] Tenant config incomplete/disabled, using PLATFORM SendGrid for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Email Service] Tenant config incomplete/disabled, using PLATFORM SendGrid for org: ${orgId}`);
       } else {
         config = {
           apiKey: "",
@@ -261,7 +261,7 @@ async function getSendGridConfig(orgId?: string): Promise<SendGridConfig> {
           platformFallbackEnabled: true,
           source: 'platform',
         };
-        console.log(`[Email Service] Using PLATFORM SendGrid credentials (no config exists) for org: ${orgId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Email Service] Using PLATFORM SendGrid credentials (no config exists) for org: ${orgId}`);
       } else {
         config = {
           apiKey: "",
@@ -399,7 +399,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
     });
 
     if (response.ok || response.status === 202) {
-      console.log(`[Email Service] Email sent successfully to: ${toEmail} (source: ${config.source}, org: ${orgId})`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[Email Service] Email sent successfully to: ${toEmail} (source: ${config.source}, org: ${orgId})`);
       return { success: true, source: config.source };
     }
 
@@ -959,7 +959,7 @@ export async function sendInvoiceReadyEmail(data: {
     billingPortalUrl: data.billingPortalUrl,
   }, orgId);
 
-  console.log('[Email] Sending invoice ready notification to:', data.contactEmail);
+  if (process.env.NODE_ENV !== 'production') console.log('[Email] Sending invoice ready notification to:', data.contactEmail);
 
   return sendEmail({
     to: data.contactEmail,
@@ -1002,7 +1002,7 @@ export async function sendPaymentReceivedEmail(data: {
     billingPortalUrl: data.billingPortalUrl,
   }, orgId);
 
-  console.log('[Email] Sending payment received confirmation to:', data.contactEmail);
+  if (process.env.NODE_ENV !== 'production') console.log('[Email] Sending payment received confirmation to:', data.contactEmail);
 
   return sendEmail({
     to: data.contactEmail,
@@ -1045,7 +1045,7 @@ export async function sendPaymentFailedEmail(data: {
     billingPortalUrl: data.billingPortalUrl,
   }, orgId);
 
-  console.log('[Email] Sending payment failed alert to:', data.contactEmail);
+  if (process.env.NODE_ENV !== 'production') console.log('[Email] Sending payment failed alert to:', data.contactEmail);
 
   return sendEmail({
     to: data.contactEmail,
@@ -1086,7 +1086,7 @@ export async function sendSubscriptionUpdatedEmail(data: {
     billingPortalUrl: data.billingPortalUrl,
   }, orgId);
 
-  console.log('[Email] Sending subscription updated notification to:', data.contactEmail);
+  if (process.env.NODE_ENV !== 'production') console.log('[Email] Sending subscription updated notification to:', data.contactEmail);
 
   return sendEmail({
     to: data.contactEmail,
@@ -1127,7 +1127,7 @@ export async function sendUsageWarningEmail(data: {
     upgradeUrl: data.upgradeUrl,
   }, orgId);
 
-  console.log('[Email] Sending usage warning to:', data.contactEmail);
+  if (process.env.NODE_ENV !== 'production') console.log('[Email] Sending usage warning to:', data.contactEmail);
 
   return sendEmail({
     to: data.contactEmail,
@@ -1168,7 +1168,7 @@ export async function sendTrialEndingEmail(data: {
     upgradeUrl: data.upgradeUrl,
   }, orgId);
 
-  console.log('[Email] Sending trial ending notification to:', data.contactEmail);
+  if (process.env.NODE_ENV !== 'production') console.log('[Email] Sending trial ending notification to:', data.contactEmail);
 
   return sendEmail({
     to: data.contactEmail,

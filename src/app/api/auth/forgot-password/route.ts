@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const rateLimitResult = checkPasswordResetRateLimit(clientIP, email);
 
     if (!rateLimitResult.allowed) {
-      console.log('[Auth/ForgotPassword] Rate limited:', email, 'IP:', clientIP);
+      if (process.env.NODE_ENV !== 'production') console.log('[Auth/ForgotPassword] Rate limited:', email, 'IP:', clientIP);
       return new NextResponse(
         JSON.stringify({
           success: false,
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (emailResult.success) {
-          console.log('[Auth/ForgotPassword] Reset email sent to:', email);
+          if (process.env.NODE_ENV !== 'production') console.log('[Auth/ForgotPassword] Reset email sent to:', email);
         } else {
           console.error('[Auth/ForgotPassword] Reset email FAILED for:', email, emailResult.error);
         }

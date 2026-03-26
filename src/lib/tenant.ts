@@ -376,7 +376,7 @@ export const TenantService = {
       )
     `;
 
-    console.log('[TenantService] Tables initialized');
+    if (process.env.NODE_ENV !== 'production') console.log('[TenantService] Tables initialized');
   },
 
   /**
@@ -815,7 +815,7 @@ export async function getTenantContext(request?: Request): Promise<TenantContext
 
     // TENANT ISOLATION: If no tenant ID found, return null instead of demo context
     if (!tenantId) {
-      console.log('[Tenant] TENANT ISOLATION: No tenant ID found in headers or cookies - returning null');
+      if (process.env.NODE_ENV !== 'production') console.log('[Tenant] TENANT ISOLATION: No tenant ID found in headers or cookies - returning null');
       return null;
     }
 
@@ -825,7 +825,7 @@ export async function getTenantContext(request?: Request): Promise<TenantContext
     `;
 
     if (tenantResult.length === 0) {
-      console.log('[Tenant] TENANT ISOLATION: Tenant not found or inactive:', tenantId);
+      if (process.env.NODE_ENV !== 'production') console.log('[Tenant] TENANT ISOLATION: Tenant not found or inactive:', tenantId);
       return null;
     }
 

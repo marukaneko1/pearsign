@@ -38,9 +38,25 @@ export type AuditAction =
   | 'template.updated'
   | 'template.deleted'
   | 'template.assigned'
+  | 'template.activated'
+  | 'template.deactivated'
+  | 'template.duplicated'
+  // Invoice actions
+  | 'invoice.created'
+  | 'invoice.updated'
+  | 'invoice.sent'
+  | 'invoice.paid'
+  | 'invoice.voided'
+  // API key actions
+  | 'api_key.created'
+  | 'api_key.revoked'
   // Settings actions
   | 'settings.updated'
   | 'preferences.updated'
+  // Auth / account actions
+  | 'auth.password_changed'
+  | 'auth.2fa_enabled'
+  | 'auth.2fa_disabled'
   // System actions
   | 'system.login'
   | 'system.logout'
@@ -86,6 +102,33 @@ export interface CreateAuditLogInput {
   userAgent?: string | null;
 }
 
+// ============== TABLE GUARD ==============
+
+let auditTableReady = false;
+async function ensureAuditTable(): Promise<void> {
+  if (auditTableReady) return;
+  await sql`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      org_id VARCHAR(255) NOT NULL,
+      user_id VARCHAR(255),
+      action VARCHAR(100) NOT NULL,
+      entity_type VARCHAR(50),
+      entity_id VARCHAR(255),
+      actor_id VARCHAR(255),
+      actor_name VARCHAR(255),
+      actor_email VARCHAR(255),
+      details JSONB DEFAULT '{}',
+      ip_address VARCHAR(100),
+      user_agent TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_org_id    ON audit_logs(org_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_org_ts    ON audit_logs(org_id, created_at DESC)`;
+  auditTableReady = true;
+}
+
 // ============== AUDIT LOG SERVICE ==============
 
 export const AuditLogService = {
@@ -96,6 +139,8 @@ export const AuditLogService = {
     if (!input.orgId) {
       throw new Error('orgId is required for audit logging');
     }
+
+    await ensureAuditTable().catch(() => {});
 
     const result = await sql`
       INSERT INTO audit_logs (
@@ -138,33 +183,19 @@ export const AuditLogService = {
       throw new Error('orgId is required');
     }
 
+    await ensureAuditTable().catch(() => {});
+
     const orgId = options.orgId;
     const limit = options.limit || 50;
     const offset = options.offset || 0;
 
-    // Build dynamic query based on filters
-    let query = sql`
-      SELECT * FROM audit_logs
-      WHERE org_id = ${orgId}
-    `;
-
-    if (options.userId) {
-      query = sql`${query} AND user_id = ${options.userId}`;
-    }
-    if (options.action) {
-      query = sql`${query} AND action = ${options.action}`;
-    }
-    if (options.entityType) {
-      query = sql`${query} AND entity_type = ${options.entityType}`;
-    }
-    if (options.entityId) {
-      query = sql`${query} AND entity_id = ${options.entityId}`;
-    }
-
-    // For now, get all matching and filter in code for dates
     const results = await sql`
       SELECT * FROM audit_logs
       WHERE org_id = ${orgId}
+        AND (${options.userId ?? null}::text IS NULL OR user_id     = ${options.userId     ?? null}::text)
+        AND (${options.action ?? null}::text IS NULL OR action      = ${options.action     ?? null}::text)
+        AND (${options.entityType ?? null}::text IS NULL OR entity_type = ${options.entityType ?? null}::text)
+        AND (${options.entityId   ?? null}::text IS NULL OR entity_id   = ${options.entityId   ?? null}::text)
       ORDER BY created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
@@ -172,6 +203,10 @@ export const AuditLogService = {
     const countResult = await sql`
       SELECT COUNT(*) as count FROM audit_logs
       WHERE org_id = ${orgId}
+        AND (${options.userId ?? null}::text IS NULL OR user_id     = ${options.userId     ?? null}::text)
+        AND (${options.action ?? null}::text IS NULL OR action      = ${options.action     ?? null}::text)
+        AND (${options.entityType ?? null}::text IS NULL OR entity_type = ${options.entityType ?? null}::text)
+        AND (${options.entityId   ?? null}::text IS NULL OR entity_id   = ${options.entityId   ?? null}::text)
     `;
 
     return {
@@ -334,6 +369,92 @@ export async function logEnvelopeEvent(
       ...params.details,
     },
   });
+}
+
+/**
+ * Log a template event
+ */
+export async function logTemplateEvent(
+  action: AuditAction,
+  params: {
+    orgId: string;
+    templateId: string;
+    templateName?: string;
+    actorId?: string;
+    actorName?: string;
+    actorEmail?: string;
+    details?: Record<string, unknown>;
+  }
+): Promise<void> {
+  if (!params.orgId) return;
+  await AuditLogService.log({
+    orgId: params.orgId,
+    action,
+    entityType: 'TEMPLATE',
+    entityId: params.templateId,
+    actorId: params.actorId,
+    actorName: params.actorName,
+    actorEmail: params.actorEmail,
+    details: {
+      templateName: params.templateName,
+      ...params.details,
+    },
+  }).catch(err => console.warn('[AuditLog] logTemplateEvent failed:', err));
+}
+
+/**
+ * Log a system / auth event (login, logout, password change, etc.)
+ */
+export async function logSystemEvent(
+  action: AuditAction,
+  params: {
+    orgId: string;
+    userId?: string;
+    actorId?: string;
+    actorName?: string;
+    actorEmail?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    details?: Record<string, unknown>;
+  }
+): Promise<void> {
+  if (!params.orgId) return;
+  await AuditLogService.log({
+    orgId: params.orgId,
+    userId: params.userId,
+    action,
+    entityType: 'SYSTEM',
+    actorId: params.actorId,
+    actorName: params.actorName,
+    actorEmail: params.actorEmail,
+    ipAddress: params.ipAddress,
+    userAgent: params.userAgent,
+    details: params.details || {},
+  }).catch(err => console.warn('[AuditLog] logSystemEvent failed:', err));
+}
+
+/**
+ * Log a settings change event
+ */
+export async function logSettingsEvent(
+  params: {
+    orgId: string;
+    actorId?: string;
+    actorName?: string;
+    actorEmail?: string;
+    details?: Record<string, unknown>;
+  }
+): Promise<void> {
+  if (!params.orgId) return;
+  await AuditLogService.log({
+    orgId: params.orgId,
+    action: 'settings.updated',
+    entityType: 'SETTINGS',
+    actorId: params.actorId,
+    actorName: params.actorName,
+    actorEmail: params.actorEmail,
+    details: params.details || {},
+  }).catch(err => console.warn('[AuditLog] logSettingsEvent failed:', err));
 }
 
 /**

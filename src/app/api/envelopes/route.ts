@@ -45,7 +45,7 @@ export const GET = withTenant(async (request: NextRequest, { context, tenantId }
     const sessionTenantId = await getCurrentTenantId();
     const effectiveTenantId = sessionTenantId || tenantId;
 
-    console.log('[Envelopes API] Fetching for tenant:', effectiveTenantId, 'Session tenant:', sessionTenantId);
+    if (process.env.NODE_ENV !== 'production') console.log('[Envelopes API] Fetching for tenant:', effectiveTenantId, 'Session tenant:', sessionTenantId);
 
     // Query envelopes by joining documents and signing sessions
     // CRITICAL: Always filter by the effective tenant ID for proper isolation
