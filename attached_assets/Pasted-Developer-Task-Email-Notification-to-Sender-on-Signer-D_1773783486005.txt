@@ -1,0 +1,47 @@
+Developer Task: Email Notification to Sender on Signer Decline
+
+Problem
+When a signer clicks "Decline" on a document, the sender receives no notification. This leaves senders unaware that their document was rejected and unable to follow up. All other document lifecycle events (Viewed, Signed, Voided) already trigger sender email notifications — Decline must be added to match.
+
+Expected Behavior
+When a signer declines a document, the sender should immediately receive an email notification informing them who declined, which document was declined, and when.
+
+Tasks
+1. Hook Into the Decline Event
+Locate where the decline action is handled server-side (the endpoint or service method that processes a signer's decline submission). Immediately after the decline is recorded, trigger the notification — the same way Signed/Viewed/Voided currently fire their notifications.
+
+2. Create the Decline Email Template
+Model it after the existing Signed/Voided templates for visual consistency. It should include:
+FieldValueSubject[Signer Name] has declined to sign "[Document Name]"Signer NameFull name of the signer who declinedDocument NameName of the document/envelopeDeclined AtTimestamp (formatted, sender's timezone if available)Decline ReasonIf your platform collects a reason on decline, include it. If not, omit or show "No reason provided"CTA Button"View Document" → links to the document in the sender's dashboard
+
+3. Add "Declined" to the Notification Preference System
+If senders can toggle which notifications they receive (e.g. a notification settings panel), add a Declined toggle alongside the existing Viewed / Signed / Voided options.
+If no such settings panel exists, default the Declined notification to on for all senders — consistent with how the other three events behave.
+
+4. Audit the Notification Dispatch Layer
+Find the existing notification dispatch logic (likely a sendDocumentNotification(event, envelopeId) type function or equivalent). Add declined as a supported event type:
+javascript// Existing events — match this pattern
+const NOTIFICATION_EVENTS = {
+  viewed:  { subject: '...', template: 'doc_viewed' },
+  signed:  { subject: '...', template: 'doc_signed' },
+  voided:  { subject: '...', template: 'doc_voided' },
+  // ADD THIS
+  declined: { subject: '...', template: 'doc_declined' },
+};
+
+5. Audit the Decline Flow for Multi-Signer Envelopes
+If a document has multiple signers, confirm the behavior:
+
+Any signer declines → sender is notified immediately (recommended)
+The notification should clearly state which signer declined, not just that "someone" declined
+The remaining signers should not receive further signing requests until the sender takes action (re-sends, voids, or edits) — confirm this is already handled or flag it as a separate ticket
+
+
+Acceptance Criteria
+
+ Sender receives an email the moment a signer clicks Decline
+ Email contains signer name, document name, timestamp, and decline reason if applicable
+ Email styling is consistent with Viewed / Signed / Voided notification emails
+ "Declined" toggle added to notification preferences if that panel exists
+ Tested end-to-end: single signer decline, multi-signer partial decline
+ No duplicate emails sent if the same signer somehow triggers decline more than once

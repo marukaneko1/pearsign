@@ -1,0 +1,88 @@
+Developer Task: Dynamic Field Scaling & Containment in eSign Form Renderer
+
+Problem
+When fields are mapped onto a PDF form (e.g., the Credit Application), the input elements do not constrain themselves to the boundaries of the mapped box. Text/inputs overflow or render at a fixed size regardless of the box dimensions defined during field mapping. See attached screenshot for reference.
+
+Expected Behavior
+When a field is mapped to a region on a document:
+
+The input/rendered value must be fully contained within the mapped bounding box — no overflow in any direction
+Font size should auto-scale down to fit the available space if the value is too long
+The field must never visually break outside its box boundaries regardless of input length
+
+
+Tasks
+1. Enforce Bounding Box Clipping on All Field Overlays
+Every field overlay rendered on the document must have:
+cssoverflow: hidden;
+width: [mapped box width]px;
+height: [mapped box height]px;
+position: absolute;
+top: [mapped y]px;
+left: [mapped x]px;
+box-sizing: border-box;
+No field should be allowed to render outside these constraints.
+
+2. Implement Auto-Scaling Text
+For text fields, the font size must dynamically shrink to fit content within the box width. Two acceptable approaches:
+Option A — CSS only (preferred for simple text):
+csswhite-space: nowrap;
+overflow: hidden;
+font-size: clamp(6px, [calculated size]px, 14px);
+Option B — JS fit-text on value change:
+javascriptfunction fitTextToBox(inputEl, containerWidth, containerHeight) {
+  let fontSize = 14;
+  inputEl.style.fontSize = fontSize + 'px';
+  while (
+    (inputEl.scrollWidth > containerWidth || inputEl.scrollHeight > containerHeight) 
+    && fontSize > 6
+  ) {
+    fontSize -= 0.5;
+    inputEl.style.fontSize = fontSize + 'px';
+  }
+}
+// Call on every onChange / onBlur
+Use Option B if fields support multi-line content.
+
+3. Field Type-Specific Rules
+Field TypeBehaviorText (single line)Auto-shrink font, no wrap, clip overflowText (multi-line)Auto-shrink font, wrap within box, scroll hiddenCheckboxFixed size icon centered in box, no resizeSignatureScale signature image to fit box with object-fit: containDateSame as single-line text
+
+4. Audit the Field Mapper
+When a field is mapped in the admin/mapping tool, confirm that:
+
+The width and height of the bounding box are being saved to the database and passed through to the renderer
+The renderer is actually consuming width/height from the field config — if it's currently ignoring those values and defaulting to a hardcoded size, that's likely the root cause
+
+Check the field config object being passed to the renderer — it should look like:
+json{
+  "fieldId": "legal_name",
+  "type": "text",
+  "x": 412,
+  "y": 148,
+  "width": 230,
+  "height": 22,
+  "fontSize": 12,
+  "value": ""
+}
+If width and height are missing or null, fix the mapper to persist them.
+
+5. PDF Export / Flattening
+If fields are flattened into a PDF on submission (e.g., via PDFLib, pdf-lib, iTextSharp), ensure the text drawing step also respects the box:
+
+Use the bounding box width to calculate max characters or auto-size font
+Example with pdf-lib:
+
+javascriptpage.drawText(value, {
+  x: field.x,
+  y: field.y,
+  size: calculatedFontSize,
+  maxWidth: field.width,
+  lineHeight: field.height,
+});
+
+Acceptance Criteria
+
+ No field value overflows its mapped box under any circumstance
+ Long values shrink font to fit rather than bleed outside the box
+ Behavior is consistent in both the live signing view and the flattened PDF output
+ Tested with: short values, long values, empty values, and all field types

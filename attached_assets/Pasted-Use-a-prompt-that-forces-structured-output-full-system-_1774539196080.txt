@@ -1,0 +1,97 @@
+Use a prompt that forces structured output, full system visibility, and no vague summaries. You want Replit AI to behave like a senior engineer doing a codebase audit.
+
+Paste this:
+
+⸻
+
+Prompt: Full Stack System Audit
+
+Act as a senior software engineer performing a complete system audit. I want a deep, technical breakdown of this entire project. Do NOT summarize broadly—be specific and structured.
+
+Analyze the full stack and return your response in the following format:
+
+1. Project Overview
+	•	What this application does (core purpose)
+	•	Key features and user flows
+
+2. Frontend Architecture
+	•	Framework(s) used (React, Next.js, etc.)
+	•	Folder structure and component hierarchy
+	•	State management approach (Redux, Context, etc.)
+	•	Routing system
+	•	API interaction layer (fetch/axios, hooks, etc.)
+
+3. Backend Architecture
+	•	Language and framework (Node, Express, Django, etc.)
+	•	Server structure (routes, controllers, services)
+	•	Authentication system (JWT, sessions, OAuth, etc.)
+	•	Middleware and request flow
+
+4. Database & Data Layer
+	•	Type of database (SQL/NoSQL)
+	•	Schema design / models
+	•	Relationships between entities
+	•	ORM/Query system used
+
+5. API Layer
+	•	List of all endpoints with purpose
+	•	Request/response structure
+	•	Internal vs external APIs
+
+6. DevOps & Infrastructure
+	•	Hosting environment (Replit, AWS, Vercel, etc.)
+	•	Deployment process
+	•	Environment variables and secrets handling
+
+7. Dependencies & Integrations
+	•	Key libraries and why they’re used
+	•	Third-party services/APIs
+
+8. Security Analysis
+	•	Auth vulnerabilities
+	•	Data exposure risks
+	•	Validation and sanitization
+
+9. Performance & Scalability
+	•	Bottlenecks
+	•	Inefficient patterns
+	•	Scaling limitations
+
+10. Code Quality & Maintainability
+	•	Structure issues
+	•	Reusability problems
+	•	Technical debt
+
+11. Missing Pieces / Risks
+	•	What’s incomplete or fragile
+	•	What would break at scale
+
+12. Recommendations
+	•	Specific improvements (ranked high → low impact)
+
+If something is unclear, infer from the codebase and explain your reasoning.
+
+⸻
+
+If you want to go one level deeper (which you should), run a second prompt after:
+
+⸻
+
+Prompt: Architecture Weakness Breakdown
+
+Based on your previous analysis, identify the top 5 architectural weaknesses that would prevent this system from scaling to 10,000+ users.
+
+For each:
+	•	Explain the issue clearly
+	•	Show where it exists in the code
+	•	Explain the real-world impact
+	•	Give a precise fix (not generic advice)
+
+⸻
+
+This forces Replit to expose:
+	•	how the system is actually built
+	•	where it will break
+	•	how to upgrade it into something scalable
+
+If you want, next step I can help you turn that into a system upgrade roadmap (like turning it into a real SaaS-grade product).

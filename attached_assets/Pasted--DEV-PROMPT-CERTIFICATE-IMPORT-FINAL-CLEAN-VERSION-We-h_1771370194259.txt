@@ -1,0 +1,194 @@
+🔧 DEV PROMPT — CERTIFICATE IMPORT (FINAL CLEAN VERSION)
+
+We have successfully reissued our Sectigo eIDAS AATL certificate.
+
+The private key and leaf certificate have been cryptographically verified and match.
+
+We now need to implement proper CA-issued certificate import for signing.
+
+This must NOT break any existing signing logic.
+
+🎯 Objective
+
+Allow importing and setting a CA-issued certificate for document signing so the system:
+
+Stops generating self-signed certificates
+
+Embeds full certificate chain (leaf + intermediate + root)
+
+Uses the imported private key for PKCS#7 signing
+
+Supports certification mode
+
+Persists certificate securely
+
+Falls back ONLY if no default CA certificate exists
+
+🏗 Implementation Requirements
+1️⃣ Certificate Storage
+
+When importing, store:
+
+Leaf certificate (PEM)
+
+Private key (PEM)
+
+CA bundle (PEM)
+
+isDefault flag
+
+isSelfSigned flag (false)
+
+createdAt timestamp
+
+usage = signing
+
+Private key must be stored encrypted at rest.
+
+2️⃣ API Endpoint
+
+Ensure this endpoint works:
+
+POST /api/settings/certificates
+
+
+Payload:
+
+{
+  "action": "import",
+  "name": "PearSign AATL eIDAS",
+  "certificate": "PEM STRING",
+  "privateKey": "PEM STRING",
+  "caBundle": "PEM STRING",
+  "setAsDefault": true,
+  "usage": "signing"
+}
+
+
+On import:
+
+Validate certificate format
+
+Validate private key format
+
+Verify cert + key modulus match
+
+Parse CA bundle into chain
+
+Set as default if requested
+
+Reject if mismatch.
+
+3️⃣ Signing Engine Changes
+
+When signing a document:
+
+IF default certificate exists AND isSelfSigned = false:
+
+Use imported private key
+
+Embed full chain
+
+Disable self-signed generation
+
+IF no default certificate:
+
+Allow self-signed fallback
+
+No silent downgrade.
+
+4️⃣ Verification Endpoint
+GET /api/settings/certificates
+
+
+Must return:
+
+name
+
+isSelfSigned
+
+isDefault
+
+issuer
+
+subject
+
+chainCertificateCount
+
+hasPrivateKey
+
+5️⃣ Signing Behavior Validation
+
+After import:
+
+PKCS#7 must embed:
+
+Leaf cert
+
+Intermediate
+
+Root
+
+Adobe Acrobat Desktop must show:
+
+Signature valid
+
+Issuer = Sectigo
+
+Not self-signed
+
+6️⃣ DO NOT TOUCH
+
+Existing PDF rendering
+
+Existing hashing logic
+
+Existing audit trail
+
+Existing document storage
+
+Existing certification toggle
+
+Only update certificate handling.
+
+7️⃣ Security Requirements
+
+Private key encrypted in DB
+
+No logging of private key
+
+No exposure in GET responses
+
+Admin-only access to import endpoint
+
+🚫 Explicitly Do NOT
+
+Modify unrelated modules
+
+Regenerate keys
+
+Strip line breaks
+
+Convert PEM to DER
+
+Modify existing database schema without migration
+
+Break backward compatibility
+
+📦 After Implementation
+
+Developer must:
+
+Import cert via API
+
+Restart signing worker
+
+Sign test PDF
+
+Provide:
+
+API import response
+
+GET verification response
+
+Screenshot of Adobe trust panel

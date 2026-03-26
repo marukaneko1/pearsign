@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Env & secrets
+.env
+.env*.local
+
+# Debug / OS
+*.log
+.DS_Store
+
+# Test / coverage
+coverage/
+
+# Vercel
+.vercel
+
+# IDE
+.idea/
+.vscode/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local uploads and certs (do not commit)
+uploads/
+config/certs/

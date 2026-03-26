@@ -1,0 +1,401 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 224 24% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 24% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 24% 12%;
+
+    --primary: 224 72% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 224 20% 16%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 224 40% 95%;
+    --accent-foreground: 224 72% 42%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 14% 90%;
+    --input: 220 14% 88%;
+    --ring: 224 72% 52%;
+    --radius: 0.625rem;
+
+    --chart-1: 224 72% 52%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 280 60% 55%;
+    --chart-5: 340 65% 55%;
+
+    --pearsign-primary: 224 72% 52%;
+    --pearsign-primary-light: 224 40% 95%;
+    --pearsign-blue: 224 72% 52%;
+    --pearsign-blue-dark: 224 68% 44%;
+    --pearsign-success: 160 60% 40%;
+    --pearsign-warning: 38 92% 50%;
+    --pearsign-pending: 224 65% 58%;
+  }
+
+  .dark {
+    --background: 224 20% 7%;
+    --foreground: 220 14% 96%;
+    --card: 224 18% 10%;
+    --card-foreground: 220 14% 96%;
+    --popover: 224 20% 9%;
+    --popover-foreground: 220 14% 96%;
+
+    --primary: 224 72% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 224 12% 15%;
+    --secondary-foreground: 220 14% 92%;
+    --muted: 224 12% 15%;
+    --muted-foreground: 220 10% 56%;
+    --accent: 224 20% 16%;
+    --accent-foreground: 224 72% 68%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 224 12% 17%;
+    --input: 224 12% 17%;
+    --ring: 224 72% 60%;
+
+    --chart-1: 224 72% 60%;
+    --chart-2: 160 55% 50%;
+    --chart-3: 38 88% 55%;
+    --chart-4: 280 55% 60%;
+    --chart-5: 340 60% 60%;
+
+    --pearsign-primary: 224 72% 60%;
+    --pearsign-primary-light: 224 20% 16%;
+    --pearsign-blue: 224 72% 60%;
+    --pearsign-blue-dark: 224 68% 52%;
+    --pearsign-success: 160 55% 50%;
+    --pearsign-warning: 38 88% 55%;
+    --pearsign-pending: 224 65% 62%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variant-ligatures: normal;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-left {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .safe-right {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Signature fonts */
+.font-signature-elegant {
+  font-family: var(--font-dancing-script), 'Dancing Script', cursive;
+}
+
+.font-signature-classic {
+  font-family: var(--font-great-vibes), 'Great Vibes', cursive;
+}
+
+.font-signature-modern {
+  font-family: var(--font-caveat), 'Caveat', cursive;
+}
+
+.font-signature-bold {
+  font-family: var(--font-permanent-marker), 'Permanent Marker', cursive;
+}
+
+/* Meteor animations for signing page */
+@keyframes meteor-fall {
+  0% {
+    transform: translateX(0) translateY(0) rotate(215deg);
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-300px) translateY(300px) rotate(215deg);
+    opacity: 0;
+  }
+}
+
+@keyframes subtle-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.meteor {
+  position: absolute;
+  width: 2px;
+  height: 80px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  border-radius: 999px;
+  transform: rotate(215deg);
+  opacity: 0;
+  animation: meteor-fall linear infinite;
+}
+
+.meteor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.4), 0 0 20px 4px rgba(100, 149, 237, 0.2);
+}
+
+.signing-glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.signing-glass-card-solid {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.signing-shimmer-btn {
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: subtle-float 6s ease-in-out infinite;
+}
+
+/* Login page floating orbs */
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0;
+  animation: orb-drift 20s ease-in-out infinite, orb-fade-in 1.5s ease-out forwards;
+}
+
+.login-orb-1 {
+  width: 400px;
+  height: 400px;
+  top: -5%;
+  right: -5%;
+  background: radial-gradient(circle, rgba(0,113,227,0.07) 0%, transparent 70%);
+  animation-delay: 0s;
+}
+
+.login-orb-2 {
+  width: 350px;
+  height: 350px;
+  bottom: -8%;
+  left: -8%;
+  background: radial-gradient(circle, rgba(52,199,89,0.05) 0%, transparent 70%);
+  animation-delay: -5s;
+  animation-duration: 25s;
+}
+
+.login-orb-3 {
+  width: 250px;
+  height: 250px;
+  top: 40%;
+  left: 60%;
+  background: radial-gradient(circle, rgba(255,159,10,0.04) 0%, transparent 70%);
+  animation-delay: -10s;
+  animation-duration: 22s;
+}
+
+.login-orb-4 {
+  width: 300px;
+  height: 300px;
+  top: 60%;
+  right: 55%;
+  background: radial-gradient(circle, rgba(0,113,227,0.04) 0%, transparent 70%);
+  animation-delay: -15s;
+  animation-duration: 28s;
+}
+
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-20px, 15px) scale(0.95); }
+  75% { transform: translate(15px, 25px) scale(1.02); }
+}
+
+@keyframes orb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Login floating graphics */
+.login-float {
+  position: absolute;
+  opacity: 0;
+  animation: float-graphic 18s ease-in-out infinite, float-fade-in 2s ease-out forwards;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.04));
+}
+
+.login-float-1 {
+  top: 6%;
+  left: 4%;
+  animation-duration: 28s, 2s;
+  animation-delay: 0s, 0s;
+}
+
+.login-float-2 {
+  top: 18%;
+  right: 5%;
+  animation-duration: 20s, 2s;
+  animation-delay: -4s, 0.4s;
+}
+
+.login-float-3 {
+  bottom: 18%;
+  right: 6%;
+  animation-duration: 22s, 2s;
+  animation-delay: -8s, 0.6s;
+}
+
+.login-float-4 {
+  bottom: 10%;
+  left: 5%;
+  animation-duration: 24s, 2s;
+  animation-delay: -12s, 0.8s;
+}
+
+.login-float-5 {
+  top: 55%;
+  left: 3%;
+  animation-duration: 26s, 2s;
+  animation-delay: -6s, 0.5s;
+}
+
+@keyframes float-graphic {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(12px, -18px) rotate(1.5deg); }
+  40% { transform: translate(-8px, 10px) rotate(-1deg); }
+  60% { transform: translate(15px, 8px) rotate(0.5deg); }
+  80% { transform: translate(-10px, -12px) rotate(-1.5deg); }
+}
+
+@keyframes float-fade-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 0.55; transform: scale(1); }
+}
+
+/* Signature drawing animation */
+.login-signature-path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: draw-signature 3s ease-in-out 2s forwards, draw-signature-loop 6s ease-in-out 8s infinite;
+}
+
+@keyframes draw-signature {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-signature-loop {
+  0% { stroke-dashoffset: 0; opacity: 1; }
+  40% { stroke-dashoffset: 0; opacity: 1; }
+  50% { opacity: 0; }
+  55% { stroke-dashoffset: 200; opacity: 0; }
+  60% { opacity: 0.3; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+/* Stamp and checkmark animation */
+.login-stamp {
+  animation: stamp-appear 0.5s ease-out 4.5s forwards;
+}
+
+.login-stamp-check {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: stamp-check-draw 0.4s ease-out 4.8s forwards;
+}
+
+@keyframes stamp-appear {
+  0% { opacity: 0; transform: scale(1.6); }
+  60% { opacity: 0.6; transform: scale(0.9); }
+  100% { opacity: 0.5; transform: scale(1); }
+}
+
+@keyframes stamp-check-draw {
+  to { stroke-dashoffset: 0; opacity: 0.5; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border/60 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/40;
+}
